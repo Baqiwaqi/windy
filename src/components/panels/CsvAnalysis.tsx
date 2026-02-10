@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { AddressDetailSheet } from "@/components/panels/AddressDetailSheet";
 import { parseAddressCsv } from "@/lib/csv";
 import { calculateDistance } from "@/lib/geo";
 import { turbineEmojis } from "@/lib/turbineTypes";
@@ -20,6 +21,7 @@ export function CsvAnalysis() {
 		isLoading,
 		setUploadedAddresses,
 		setAffectedAddresses,
+		setAddressSheetOpen,
 	} = useAddressStore();
 	const turbines = useTurbineStore((s) => s.turbines);
 	const { hinderDistance, setHinderDistance } = useMapStore();
@@ -133,10 +135,6 @@ export function CsvAnalysis() {
 		count: affectedAddresses.filter((a) => a.turbineIndex === i).length,
 	}));
 
-	const examples = affectedAddresses
-		.slice(0, 10)
-		.sort((a, b) => a.distance - b.distance);
-
 	return (
 		<div className="space-y-3">
 			<div className="pb-3 border-b border-border">
@@ -209,21 +207,14 @@ export function CsvAnalysis() {
 						</div>
 					)}
 
-					{examples.length > 0 && (
-						<div className="text-xs p-2 bg-muted rounded max-h-40 overflow-y-auto">
-							<p className="font-semibold mb-1">Voorbeeldadressen:</p>
-							{examples.map((addr, i) => (
-								<p key={i}>
-									{addr.address} ({addr.distance}m)
-								</p>
-							))}
-							{affectedAddresses.length > 10 && (
-								<p className="text-muted-foreground mt-1">
-									... en {affectedAddresses.length - 10} meer
-								</p>
-							)}
-						</div>
-					)}
+					<Button
+						onClick={() => setAddressSheetOpen(true)}
+						variant="outline"
+						size="sm"
+						className="w-full"
+					>
+						Bekijk alle adressen
+					</Button>
 
 					<Button
 						onClick={handleExport}
@@ -235,6 +226,7 @@ export function CsvAnalysis() {
 					</Button>
 				</div>
 			)}
+		<AddressDetailSheet />
 		</div>
 	);
 }

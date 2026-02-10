@@ -1,8 +1,11 @@
-import { MapContainer, TileLayer, useMapEvents } from "react-leaflet";
+import { useEffect, useRef } from "react";
+import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { turbineTypes } from "@/lib/turbineTypes";
+import { useAddressStore } from "@/stores/addressStore";
 import { useThemeStore } from "@/stores/themeStore";
 import { useTurbineStore } from "@/stores/turbineStore";
 import { AddressMarker } from "./AddressMarker";
+import { AffectedAddressMarkers } from "./AffectedAddressMarkers";
 import { DistanceZones } from "./DistanceZones";
 import { MinDistCircle } from "./MinDistCircle";
 import { TurbineMarker } from "./TurbineMarker";
@@ -42,6 +45,23 @@ function CursorManager() {
 	return null;
 }
 
+function MapFlyTo() {
+	const map = useMap();
+	const selectedAddress = useAddressStore((s) => s.selectedAddress);
+	const prevRef = useRef(selectedAddress);
+
+	useEffect(() => {
+		if (selectedAddress && selectedAddress !== prevRef.current) {
+			map.flyTo([selectedAddress.lat, selectedAddress.lng], 16, {
+				duration: 1,
+			});
+		}
+		prevRef.current = selectedAddress;
+	}, [selectedAddress, map]);
+
+	return null;
+}
+
 export function MapView() {
 	const turbines = useTurbineStore((s) => s.turbines);
 	const theme = useThemeStore((s) => s.theme);
@@ -68,7 +88,9 @@ export function MapView() {
 				<MinDistCircle key={`min-${turbine.id}`} turbine={turbine} />
 			))}
 
+			<AffectedAddressMarkers />
 			<AddressMarker />
+			<MapFlyTo />
 		</MapContainer>
 	);
 }

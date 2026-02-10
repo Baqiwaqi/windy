@@ -7,11 +7,15 @@ interface AddressState {
 	uploadedAddresses: Address[];
 	affectedAddresses: AffectedAddress[];
 	searchedAddress: SearchedAddress | null;
+	selectedAddress: AffectedAddress | null;
+	isAddressSheetOpen: boolean;
 	isLoading: boolean;
 
 	setUploadedAddresses: (addresses: Address[]) => void;
 	setAffectedAddresses: (addresses: AffectedAddress[]) => void;
 	setSearchedAddress: (address: SearchedAddress | null) => void;
+	setSelectedAddress: (address: AffectedAddress | null) => void;
+	setAddressSheetOpen: (open: boolean) => void;
 	loadDefaultAddresses: () => Promise<void>;
 }
 
@@ -19,11 +23,15 @@ export const useAddressStore = create<AddressState>((set, get) => ({
 	uploadedAddresses: [],
 	affectedAddresses: [],
 	searchedAddress: null,
+	selectedAddress: null,
+	isAddressSheetOpen: false,
 	isLoading: false,
 
 	setUploadedAddresses: (addresses) => set({ uploadedAddresses: addresses }),
 	setAffectedAddresses: (addresses) => set({ affectedAddresses: addresses }),
 	setSearchedAddress: (address) => set({ searchedAddress: address }),
+	setSelectedAddress: (address) => set({ selectedAddress: address }),
+	setAddressSheetOpen: (open) => set({ isAddressSheetOpen: open }),
 
 	loadDefaultAddresses: async () => {
 		// Skip if already loaded
