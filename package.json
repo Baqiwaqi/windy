@@ -9,7 +9,8 @@
     "test": "vitest run",
     "format": "biome format",
     "lint": "biome lint",
-    "check": "biome check"
+    "check": "biome check",
+    "fetch-addresses": "node --experimental-strip-types scripts/fetch-addresses.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

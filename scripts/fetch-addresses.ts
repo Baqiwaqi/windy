@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'node:fs'
+import * as path from 'node:path'
 import * as readline from 'node:readline'
 
 const BAG_OBJECTTYPE_CODES: Record<string, string> = {
@@ -155,8 +156,10 @@ function saveToCsv(addresses: Address[], filename: string) {
       `"${a.adres}","${a.postcode}","${a.huisnummer}","${a.straat}","${a.woonplaats}","${a.gemeente}","${a.objecttype}",${a.lat},${a.lng}`,
   )
 
-  fs.writeFileSync(filename, [header, ...rows].join('\n'), 'utf-8')
-  console.log(`\nOpgeslagen: ${addresses.length} adressen naar ${filename}`)
+  const outputPath = path.resolve(filename)
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true })
+  fs.writeFileSync(outputPath, [header, ...rows].join('\n'), 'utf-8')
+  console.log(`\nOpgeslagen: ${addresses.length} adressen naar ${outputPath}`)
 }
 
 function prompt(question: string): Promise<string> {
@@ -210,7 +213,7 @@ async function main() {
   })
 
   console.log(`\n${unique.length} unieke adressen gevonden`)
-  saveToCsv(unique, 'adressen_windturbine.csv')
+  saveToCsv(unique, 'public/adressen_windturbine.csv')
 
   // Stats
   const byType: Record<string, number> = {}
