@@ -39,6 +39,7 @@ export function parseAddressCsv(csvText: string): Address[] {
 	const huisnummerCol = find("huisnummer", "huis_nlt");
 	const woonplaatsCol = find("woonplaats", "woonplaatsnaam");
 	const objecttypeCol = find("objecttype");
+	const nummeraanduidingCol = find("nummeraanduiding_id", "nummeraanduiding");
 
 	if (!latCol || !lngCol) {
 		throw new Error(
@@ -54,6 +55,10 @@ export function parseAddressCsv(csvText: string): Address[] {
 
 		if (isNaN(lat) || isNaN(lng)) continue;
 
+		const nummeraanduidingId = nummeraanduidingCol
+			? row[nummeraanduidingCol]
+			: undefined;
+
 		addresses.push({
 			address: row[adresCol] ?? "",
 			postcode: row[postcodeCol] ?? "",
@@ -64,6 +69,7 @@ export function parseAddressCsv(csvText: string): Address[] {
 				: "verblijfsobject",
 			lat,
 			lng,
+			...(nummeraanduidingId ? { nummeraanduidingId } : {}),
 		});
 	}
 

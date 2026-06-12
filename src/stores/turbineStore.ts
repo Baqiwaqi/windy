@@ -13,8 +13,14 @@ interface TurbineState {
 	removeTurbine: (id: number) => void;
 	moveTurbine: (id: number, latlng: LatLng) => void;
 	clearTurbines: () => void;
-	loadTurbines: (turbines: Turbine[]) => void;
+	loadTurbines: (turbines: Omit<Turbine, "id">[]) => void;
 }
+
+// Date.now() collides when several turbines are created in the same
+// millisecond (e.g. loading a saved configuration), which breaks React keys
+// and makes moveTurbine match multiple turbines. A counter is always unique.
+let idCounter = Date.now();
+const nextId = () => ++idCounter;
 
 export const useTurbineStore = create<TurbineState>((set) => ({
 	turbines: [],
@@ -27,7 +33,7 @@ export const useTurbineStore = create<TurbineState>((set) => ({
 
 	addTurbine: (latlng, type, typeIndex) =>
 		set((s) => ({
-			turbines: [...s.turbines, { id: Date.now(), latlng, type, typeIndex }],
+			turbines: [...s.turbines, { id: nextId(), latlng, type, typeIndex }],
 			isAddMode: false,
 		})),
 
@@ -43,5 +49,6 @@ export const useTurbineStore = create<TurbineState>((set) => ({
 
 	clearTurbines: () => set({ turbines: [] }),
 
-	loadTurbines: (turbines) => set({ turbines }),
+	loadTurbines: (turbines) =>
+		set({ turbines: turbines.map((t) => ({ ...t, id: nextId() })) }),
 }));

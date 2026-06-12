@@ -1,12 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
-import { ThemeToggle } from "@/components/theme-toggle";
-import {
-	SidebarInset,
-	SidebarProvider,
-	SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { Header } from "@/components/Header";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAddressStore } from "@/stores/addressStore";
 
 const MapView = lazy(() =>
@@ -28,16 +24,7 @@ function App() {
 		<SidebarProvider>
 			<AppSidebar />
 			<SidebarInset className="flex flex-col h-screen overflow-hidden">
-				<header className="flex items-center gap-2 border-b px-4 py-2">
-					<SidebarTrigger className="-ml-1" />
-					<div className="flex-1">
-						<h1 className="text-sm font-semibold">Windturbine Visualisatie</h1>
-						<p className="text-xs text-muted-foreground">
-							Hoeker en GarstenPolder
-						</p>
-					</div>
-					<ThemeToggle />
-				</header>
+				<Header />
 				<div className="flex-1 relative">
 					<Suspense
 						fallback={

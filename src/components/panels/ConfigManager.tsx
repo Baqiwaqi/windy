@@ -1,4 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+	Check,
+	Download,
+	FolderOpen,
+	Save,
+	Trash2,
+	Upload,
+	Wind,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -11,6 +21,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { turbineTypes } from "@/lib/turbineTypes";
+import { cn } from "@/lib/utils";
 import { useConfigStore } from "@/stores/configStore";
 import { useMapStore } from "@/stores/mapStore";
 import { useTurbineStore } from "@/stores/turbineStore";
@@ -22,11 +33,52 @@ const configSchema = z.object({
 
 type ConfigFormValues = z.infer<typeof configSchema>;
 
+function relativeTime(timestamp: string): string {
+	const diffMs = Date.now() - new Date(timestamp).getTime();
+	const minutes = Math.round(diffMs / 60_000);
+	if (minutes < 1) return "zojuist";
+	const rtf = new Intl.RelativeTimeFormat("nl-NL", { numeric: "auto" });
+	if (minutes < 60) return rtf.format(-minutes, "minute");
+	const hours = Math.round(minutes / 60);
+	if (hours < 24) return rtf.format(-hours, "hour");
+	const days = Math.round(hours / 24);
+	if (days < 30) return rtf.format(-days, "day");
+	return new Date(timestamp).toLocaleDateString("nl-NL", {
+		day: "numeric",
+		month: "short",
+		year: "numeric",
+	});
+}
+
 export function ConfigManager() {
-	const { configurations, saveConfiguration, deleteConfiguration } =
-		useConfigStore();
-	const { turbines, clearTurbines, addTurbine } = useTurbineStore();
+	const {
+		configurations,
+		activeConfigId,
+		saveConfiguration,
+		deleteConfiguration,
+		setActiveConfig,
+	} = useConfigStore();
+	const { turbines, loadTurbines } = useTurbineStore();
 	const { minimumTurbineDistance, setMinimumTurbineDistance } = useMapStore();
+
+	const [feedback, setFeedback] = useState<string | null>(null);
+	const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+	const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(
+		() => () => {
+			if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+			if (deleteTimer.current) clearTimeout(deleteTimer.current);
+		},
+		[],
+	);
+
+	const flash = (message: string) => {
+		if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+		setFeedback(message);
+		feedbackTimer.current = setTimeout(() => setFeedback(null), 3000);
+	};
 
 	const form = useForm<ConfigFormValues>({
 		resolver: zodResolver(configSchema),
@@ -34,14 +86,14 @@ export function ConfigManager() {
 	});
 
 	const onSubmit = (values: ConfigFormValues) => {
-		if (turbines.length === 0) {
-			alert("Plaats eerst turbines voordat je een configuratie opslaat");
-			return;
-		}
+		const name = values.name.trim();
+		const existing = configurations.find(
+			(c) => c.name.toLowerCase() === name.toLowerCase(),
+		);
 
 		const config: Configuration = {
-			id: Date.now(),
-			name: values.name,
+			id: existing?.id ?? Date.now(),
+			name,
 			timestamp: new Date().toISOString(),
 			turbines: turbines.map((t) => ({
 				latlng: t.latlng,
@@ -52,24 +104,34 @@ export function ConfigManager() {
 		};
 
 		saveConfiguration(config);
+		setActiveConfig(config.id);
 		form.reset();
-		alert(`Configuratie "${values.name}" opgeslagen!`);
+		flash(existing ? `"${name}" bijgewerkt` : `"${name}" opgeslagen`);
 	};
 
 	const handleLoad = (config: Configuration) => {
-		clearTurbines();
 		setMinimumTurbineDistance(config.minimumDistance || 800);
-
-		for (const td of config.turbines) {
-			const type = turbineTypes[td.typeIndex];
-			addTurbine(td.latlng, type, td.typeIndex);
-		}
+		loadTurbines(
+			config.turbines.map((td) => ({
+				latlng: td.latlng,
+				typeIndex: td.typeIndex,
+				type: turbineTypes[td.typeIndex] ?? td.type,
+			})),
+		);
+		setActiveConfig(config.id);
+		flash(`"${config.name}" geladen`);
 	};
 
-	const handleDelete = (id: number) => {
-		if (confirm("Weet je zeker dat je deze configuratie wilt verwijderen?")) {
-			deleteConfiguration(id);
+	const handleDeleteClick = (id: number) => {
+		if (confirmDeleteId !== id) {
+			setConfirmDeleteId(id);
+			if (deleteTimer.current) clearTimeout(deleteTimer.current);
+			deleteTimer.current = setTimeout(() => setConfirmDeleteId(null), 3000);
+			return;
 		}
+		deleteConfiguration(id);
+		setConfirmDeleteId(null);
+		flash("Configuratie verwijderd");
 	};
 
 	const handleExportJson = (config: Configuration) => {
@@ -106,15 +168,17 @@ export function ConfigManager() {
 					config.id = Date.now();
 					config.timestamp = new Date().toISOString();
 					saveConfiguration(config);
-					alert(`Configuratie "${config.name}" ge\u00efmporteerd!`);
+					flash(`"${config.name}" geïmporteerd`);
 				} catch (err) {
-					alert(err instanceof Error ? err.message : "Fout bij importeren");
+					flash(err instanceof Error ? err.message : "Fout bij importeren");
 				}
 			};
 			reader.readAsText(file);
 		};
 		input.click();
 	};
+
+	const canSave = turbines.length > 0;
 
 	return (
 		<div className="space-y-3">
@@ -126,77 +190,133 @@ export function ConfigManager() {
 						render={({ field }) => (
 							<FormItem>
 								<FormControl>
-									<Input placeholder="Naam configuratie..." {...field} />
+									<div className="flex gap-1.5">
+										<Input
+											placeholder="Naam configuratie..."
+											className="h-8 text-sm"
+											{...field}
+										/>
+										<Button
+											type="submit"
+											size="sm"
+											className="h-8 shrink-0 px-2.5"
+											disabled={!canSave}
+											title={
+												canSave
+													? "Huidige opstelling opslaan"
+													: "Plaats eerst turbines op de kaart"
+											}
+										>
+											<Save className="size-3.5" />
+											<span className="sr-only">Opslaan</span>
+										</Button>
+									</div>
 								</FormControl>
 								<FormMessage />
 							</FormItem>
 						)}
 					/>
-					<Button type="submit" className="w-full">
-						Huidige configuratie opslaan
-					</Button>
+					{!canSave && (
+						<p className="text-[11px] text-muted-foreground">
+							Plaats eerst turbines om een configuratie op te slaan
+						</p>
+					)}
 				</form>
 			</Form>
 
-			<Button
-				onClick={handleImportJson}
-				variant="secondary"
-				size="sm"
-				className="w-full"
-			>
-				JSON importeren
-			</Button>
+			{feedback && (
+				<output className="flex items-center gap-1.5 text-xs text-primary animate-in fade-in slide-in-from-top-1">
+					<Check className="size-3.5" />
+					{feedback}
+				</output>
+			)}
 
 			<div className="space-y-2">
 				{configurations.length === 0 ? (
-					<p className="text-xs text-muted-foreground">
-						Nog geen configuraties opgeslagen
-					</p>
+					<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
+						<Wind className="size-5 text-muted-foreground/60" />
+						<p className="px-4 text-xs text-muted-foreground">
+							Nog geen configuraties — sla je huidige opstelling op of importeer
+							een JSON-bestand
+						</p>
+					</div>
 				) : (
 					configurations.map((config) => {
-						const date = new Date(config.timestamp);
-						const dateStr = date.toLocaleDateString("nl-NL", {
-							day: "numeric",
-							month: "short",
-							hour: "2-digit",
-							minute: "2-digit",
-						});
+						const isActive = config.id === activeConfigId;
+						const isConfirmingDelete = config.id === confirmDeleteId;
 
 						return (
 							<div
 								key={config.id}
-								className="border border-border rounded p-2 text-sm"
+								className={cn(
+									"group rounded-lg border p-2.5 text-sm transition-colors",
+									isActive
+										? "border-primary/50 bg-accent/50"
+										: "border-border hover:border-primary/30",
+								)}
 							>
-								<div className="flex justify-between items-start mb-1">
-									<p className="font-medium">{config.name}</p>
-									<Button
-										variant="ghost"
-										size="sm"
-										className="text-destructive hover:text-destructive h-auto py-0 px-1 text-xs"
-										onClick={() => handleDelete(config.id)}
-									>
-										&#x2715;
-									</Button>
+								<div className="mb-0.5 flex items-center justify-between gap-2">
+									<p className="truncate font-medium">{config.name}</p>
+									{isActive && (
+										<span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+											<Check className="size-2.5" />
+											Actief
+										</span>
+									)}
 								</div>
-								<p className="text-xs text-muted-foreground mb-2">
+								<p className="mb-2 text-xs text-muted-foreground">
 									{config.turbines.length} turbine
-									{config.turbines.length !== 1 ? "s" : ""} &bull; {dateStr}
+									{config.turbines.length !== 1 ? "s" : ""}
+									{config.minimumDistance
+										? ` · ${config.minimumDistance} m`
+										: ""}
+									{" · "}
+									{relativeTime(config.timestamp)}
 								</p>
-								<div className="flex gap-1">
+								<div className="flex items-center gap-1">
 									<Button
 										onClick={() => handleLoad(config)}
 										size="sm"
-										className="flex-1 text-xs h-7"
+										variant={isActive ? "secondary" : "default"}
+										className="h-7 flex-1 gap-1.5 text-xs"
 									>
-										Laden
+										<FolderOpen className="size-3" />
+										{isActive ? "Opnieuw laden" : "Laden"}
 									</Button>
 									<Button
 										onClick={() => handleExportJson(config)}
-										variant="secondary"
+										variant="ghost"
 										size="sm"
-										className="flex-1 text-xs h-7"
+										className="size-7 p-0"
+										title="Exporteren als JSON"
 									>
-										Export
+										<Download className="size-3.5" />
+										<span className="sr-only">Exporteren</span>
+									</Button>
+									<Button
+										onClick={() => handleDeleteClick(config.id)}
+										variant={isConfirmingDelete ? "destructive" : "ghost"}
+										size="sm"
+										className={cn(
+											"h-7 p-0 transition-all",
+											isConfirmingDelete
+												? "w-auto px-2 text-xs"
+												: "w-7 text-muted-foreground hover:text-destructive",
+										)}
+										title={
+											isConfirmingDelete
+												? "Klik nogmaals om te verwijderen"
+												: "Verwijderen"
+										}
+									>
+										{isConfirmingDelete ? (
+											"Zeker?"
+										) : (
+											<>
+												<Trash2 className="size-3.5" />
+												<span className="sr-only">Verwijderen</span>
+											</>
+										)}
 									</Button>
 								</div>
 							</div>
@@ -204,6 +324,16 @@ export function ConfigManager() {
 					})
 				)}
 			</div>
+
+			<Button
+				onClick={handleImportJson}
+				variant="outline"
+				size="sm"
+				className="h-7 w-full gap-1.5 text-xs"
+			>
+				<Upload className="size-3" />
+				JSON importeren
+			</Button>
 		</div>
 	);
 }

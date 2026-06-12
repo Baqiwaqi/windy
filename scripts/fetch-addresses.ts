@@ -25,6 +25,7 @@ interface PdokDoc {
   woonplaatsnaam?: string
   gemeentenaam?: string
   adresseerbaarobject_id?: string
+  nummeraanduiding_id?: string
 }
 
 interface Address {
@@ -37,6 +38,7 @@ interface Address {
   objecttype: string
   lat: number
   lng: number
+  nummeraanduiding_id: string
 }
 
 function parseAddress(doc: PdokDoc): Address | null {
@@ -64,6 +66,7 @@ function parseAddress(doc: PdokDoc): Address | null {
     objecttype,
     lat,
     lng,
+    nummeraanduiding_id: doc.nummeraanduiding_id ?? '',
   }
 }
 
@@ -150,10 +153,11 @@ function saveToCsv(addresses: Address[], filename: string) {
     return
   }
 
-  const header = 'adres,postcode,huisnummer,straat,woonplaats,gemeente,objecttype,lat,lng'
+  const header =
+    'adres,postcode,huisnummer,straat,woonplaats,gemeente,objecttype,lat,lng,nummeraanduiding_id'
   const rows = addresses.map(
     (a) =>
-      `"${a.adres}","${a.postcode}","${a.huisnummer}","${a.straat}","${a.woonplaats}","${a.gemeente}","${a.objecttype}",${a.lat},${a.lng}`,
+      `"${a.adres}","${a.postcode}","${a.huisnummer}","${a.straat}","${a.woonplaats}","${a.gemeente}","${a.objecttype}",${a.lat},${a.lng},"${a.nummeraanduiding_id}"`,
   )
 
   const outputPath = path.resolve(filename)

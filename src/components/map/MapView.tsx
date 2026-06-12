@@ -67,7 +67,14 @@ export function MapView() {
 	const theme = useThemeStore((s) => s.theme);
 
 	return (
-		<MapContainer center={[52.235, 5.05]} zoom={12} className="h-full w-full">
+		<MapContainer
+			center={[52.235, 5.05]}
+			zoom={12}
+			className="h-full w-full"
+			// Render circles to canvas instead of SVG: html2canvas misplaces
+			// Leaflet's transformed SVG overlay pane during PDF export.
+			preferCanvas
+		>
 			<TileLayer
 				key={theme}
 				attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'

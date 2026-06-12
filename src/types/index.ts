@@ -32,6 +32,12 @@ export interface Address {
 	objecttype: string;
 	lat: number;
 	lng: number;
+	nummeraanduidingId?: string;
+}
+
+export interface WozValue {
+	waarde: number;
+	peildatum: string;
 }
 
 export interface AffectedAddress extends Address {

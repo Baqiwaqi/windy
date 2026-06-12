@@ -2,6 +2,8 @@ interface PdokResult {
 	weergavenaam: string;
 	centroide_ll: string;
 	postcode?: string;
+	huis_nlt?: string;
+	nummeraanduiding_id?: string;
 }
 
 interface PdokSearchResponse {
@@ -59,4 +61,38 @@ export async function searchAddress(
 		postcode: cleanPostcode,
 		huisnummer,
 	};
+}
+
+/**
+ * Resolve the BAG nummeraanduiding_id for an address via the PDOK
+ * Locatieserver. Returns null when the address cannot be resolved,
+ * so callers can continue without a WOZ value.
+ */
+export async function lookupNummeraanduidingId(
+	postcode: string,
+	huisnummer: string,
+): Promise<string | null> {
+	const cleanPostcode = postcode.replace(/\s/g, "").toUpperCase();
+	const cleanHuisnummer = huisnummer.trim().toUpperCase();
+
+	try {
+		const response = await fetch(
+			`https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=${cleanPostcode}+${encodeURIComponent(cleanHuisnummer)}&fq=type:adres&fl=nummeraanduiding_id,postcode,huis_nlt&rows=5`,
+		);
+		if (!response.ok) return null;
+
+		const data: PdokSearchResponse = await response.json();
+		const docs = data.response.docs;
+		if (docs.length === 0) return null;
+
+		const exact = docs.find(
+			(doc) =>
+				doc.postcode === cleanPostcode &&
+				doc.huis_nlt?.toUpperCase() === cleanHuisnummer,
+		);
+
+		return (exact ?? docs[0]).nummeraanduiding_id ?? null;
+	} catch {
+		return null;
+	}
 }

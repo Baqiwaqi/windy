@@ -1,19 +1,28 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { AddressDetailSheet } from "@/components/panels/AddressDetailSheet";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { AddressDetailSheet } from "@/components/panels/AddressDetailSheet";
 import { parseAddressCsv } from "@/lib/csv";
 import { calculateDistance } from "@/lib/geo";
 import { turbineEmojis } from "@/lib/turbineTypes";
+import { enrichAddressesWithWoz } from "@/lib/woz";
 import { useAddressStore } from "@/stores/addressStore";
 import { useMapStore } from "@/stores/mapStore";
 import { useTurbineStore } from "@/stores/turbineStore";
-import type { AffectedAddress } from "@/types";
+import type { AffectedAddress, WozValue } from "@/types";
 
 export function CsvAnalysis() {
 	const fileRef = useRef<HTMLInputElement>(null);
+	const includeWozId = useId();
 	const [analyzing, setAnalyzing] = useState(false);
+	const [exporting, setExporting] = useState(false);
+	const [includeWoz, setIncludeWoz] = useState(false);
+	const [exportProgress, setExportProgress] = useState<{
+		done: number;
+		total: number;
+	} | null>(null);
 
 	const {
 		uploadedAddresses,
@@ -102,7 +111,7 @@ export function CsvAnalysis() {
 		}
 	};
 
-	const handleExport = () => {
+	const handleExport = async () => {
 		if (affectedAddresses.length === 0) {
 			alert("Geen adressen om te exporteren. Voer eerst een analyse uit.");
 			return;
@@ -111,11 +120,42 @@ export function CsvAnalysis() {
 		const sorted = [...affectedAddresses].sort(
 			(a, b) => a.distance - b.distance,
 		);
-		let csv =
-			"Adres,Postcode,Huisnummer,Woonplaats,Afstand (m),Dichtstbijzijnde Turbine,Latitude,Longitude\n";
+
+		let wozValues = new Map<string, WozValue | null>();
+		if (includeWoz) {
+			setExporting(true);
+			setExportProgress({ done: 0, total: sorted.length });
+
+			try {
+				wozValues = await enrichAddressesWithWoz(sorted, {
+					onProgress: (done, total) => setExportProgress({ done, total }),
+				});
+			} catch {
+				if (
+					!confirm(
+						"WOZ-waarden konden niet worden opgehaald. Exporteren zonder WOZ-kolom?",
+					)
+				) {
+					setExporting(false);
+					setExportProgress(null);
+					return;
+				}
+			} finally {
+				setExporting(false);
+				setExportProgress(null);
+			}
+		}
+
+		const wozColumns = includeWoz ? ",WOZ-waarde (EUR),WOZ-peildatum" : "";
+		let csv = `Adres,Postcode,Huisnummer,Woonplaats,Afstand (m),Dichtstbijzijnde Turbine,Latitude,Longitude${wozColumns}\n`;
 
 		for (const addr of sorted) {
-			csv += `"${addr.address}","${addr.postcode}","${addr.huisnummer}","${addr.woonplaats}",${addr.distance},"${addr.turbineName}",${addr.lat},${addr.lng}\n`;
+			csv += `"${addr.address}","${addr.postcode}","${addr.huisnummer}","${addr.woonplaats}",${addr.distance},"${addr.turbineName}",${addr.lat},${addr.lng}`;
+			if (includeWoz) {
+				const woz = wozValues.get(addr.address);
+				csv += `,${woz?.waarde ?? ""},"${woz?.peildatum ?? ""}"`;
+			}
+			csv += "\n";
 		}
 
 		const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -137,29 +177,34 @@ export function CsvAnalysis() {
 
 	return (
 		<div className="space-y-3">
-			<div className="pb-3 border-b border-border">
-				<Label className="text-xs font-semibold mb-1 block">
-					Adressenbestand{" "}
-					{uploadedAddresses.length > 0 ? "(vervangen)" : "(uploaden)"}
-				</Label>
+			<div className="pb-3 border-b border-border space-y-1.5">
+				<Label className="text-xs font-semibold block">Adressenbestand</Label>
 				<input
 					ref={fileRef}
 					type="file"
 					accept=".csv"
 					onChange={handleFileUpload}
-					className="w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1 file:text-xs file:text-secondary-foreground"
+					className="sr-only"
 				/>
-				{isLoading && (
-					<p className="text-xs text-primary mt-1">Adressen laden...</p>
-				)}
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="h-7 w-full text-xs"
+					onClick={() => fileRef.current?.click()}
+				>
+					{uploadedAddresses.length > 0 ? "CSV vervangen" : "CSV uploaden"}
+				</Button>
+				{isLoading && <p className="text-xs text-primary">Adressen laden...</p>}
 				{!isLoading && uploadedAddresses.length > 0 && (
-					<p className="text-xs text-primary mt-1">
+					<p className="text-xs text-primary">
 						{uploadedAddresses.length} adressen geladen
 					</p>
 				)}
 				{!isLoading && uploadedAddresses.length === 0 && (
-					<p className="text-xs text-muted-foreground mt-1">
-						CSV van adressen_ophalen.py of formaat: adres,postcode,...,lat,lng
+					<p className="text-xs text-muted-foreground break-words">
+						CSV van adressen_ophalen.py of met kolommen adres, postcode, lat,
+						lng
 					</p>
 				)}
 			</div>
@@ -216,17 +261,37 @@ export function CsvAnalysis() {
 						Bekijk alle adressen
 					</Button>
 
+					<div className="flex items-center gap-2">
+						<Checkbox
+							id={includeWozId}
+							checked={includeWoz}
+							disabled={exporting}
+							onCheckedChange={(v) => setIncludeWoz(v === true)}
+						/>
+						<Label htmlFor={includeWozId} className="cursor-pointer text-xs">
+							Inclusief WOZ-waarden (langzamer)
+						</Label>
+					</div>
+
 					<Button
 						onClick={handleExport}
+						disabled={exporting}
 						variant="secondary"
 						size="sm"
 						className="w-full"
 					>
-						Export adressenlijst
+						{exporting && exportProgress
+							? `WOZ-waarden ophalen... ${exportProgress.done}/${exportProgress.total}`
+							: "Export adressenlijst"}
 					</Button>
+					{exporting && (
+						<p className="text-xs text-muted-foreground">
+							Dit kan enkele minuten duren bij veel adressen.
+						</p>
+					)}
 				</div>
 			)}
-		<AddressDetailSheet />
+			<AddressDetailSheet />
 		</div>
 	);
 }
