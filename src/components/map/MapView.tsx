@@ -1,5 +1,11 @@
 import { useEffect, useRef } from "react";
-import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import {
+	MapContainer,
+	TileLayer,
+	useMap,
+	useMapEvents,
+	WMSTileLayer,
+} from "react-leaflet";
 import { turbineTypes } from "@/lib/turbineTypes";
 import { useAddressStore } from "@/stores/addressStore";
 import { useThemeStore } from "@/stores/themeStore";
@@ -79,6 +85,18 @@ export function MapView() {
 				key={theme}
 				attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
 				url={TILE_URLS[theme]}
+			/>
+			{/* Dutch cadastral parcels + parcel numbers (PDOK / Kadaster BRK).
+			    Server only renders these below scale ~1:6000, so they appear on
+			    zoom-in (~zoom 16+). crossOrigin keeps PDF export canvas untainted. */}
+			<WMSTileLayer
+				url="https://service.pdok.nl/kadaster/kadastralekaart/wms/v5_0"
+				layers="Kadastralekaart"
+				format="image/png"
+				transparent
+				version="1.3.0"
+				crossOrigin
+				attribution='Kadaster / <a href="https://www.pdok.nl">PDOK</a>'
 			/>
 			<MapClickHandler />
 			<CursorManager />
