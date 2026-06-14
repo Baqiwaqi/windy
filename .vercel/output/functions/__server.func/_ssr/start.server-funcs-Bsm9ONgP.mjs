@@ -1,5 +1,5 @@
 import { r as reactExports, j as jsxRuntimeExports } from "../_chunks/_libs/react.mjs";
-import { R as Route$6, c as createSsrRpc } from "./router-B_8e7T6L.mjs";
+import { R as Route$6, c as createSsrRpc } from "./router-ZrfeVNGg.mjs";
 import { u as useRouter } from "../_chunks/_libs/@tanstack/react-router.mjs";
 import { c as createServerFn } from "./index.mjs";
 import "../_chunks/_libs/@tanstack/router-core.mjs";

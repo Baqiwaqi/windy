@@ -20,7 +20,7 @@ import "../_libs/seroval.mjs";
 import "../_libs/cookie-es.mjs";
 import "../_libs/seroval-plugins.mjs";
 import "node:stream/web";
-const appCss = "/assets/styles-s7bzpNOS.css";
+const appCss = "/assets/styles-B-zg4mU2.css";
 const Route$8 = createRootRoute({
   head: () => ({
     meta: [
@@ -65,7 +65,7 @@ function RootDocument({ children }) {
     ] })
   ] });
 }
-const $$splitComponentImporter$6 = () => import("./index-BH6HoxKO.mjs").then((n) => n.i);
+const $$splitComponentImporter$6 = () => import("./index-CianWrvA.mjs").then((n) => n.i);
 const Route$7 = createFileRoute("/")({
   component: lazyRouteComponent($$splitComponentImporter$6, "component")
 });
@@ -82,7 +82,7 @@ const createSsrRpc = (functionId, importer) => {
     [TSS_SERVER_FUNCTION]: true
   });
 };
-const $$splitComponentImporter$5 = () => import("./start.server-funcs-oy2_uj5X.mjs");
+const $$splitComponentImporter$5 = () => import("./start.server-funcs-Bsm9ONgP.mjs");
 const getTodos = createServerFn({
   method: "GET"
 }).handler(createSsrRpc("c9d51a5243700889c80f82ed57a4ce74b25f188e5ebd534c9c64965dc44e8e8d"));
@@ -105,7 +105,7 @@ const $$splitComponentImporter$3 = () => import("./start.ssr.index-BmCCCK3g.mjs"
 const Route$3 = createFileRoute("/demo/start/ssr/")({
   component: lazyRouteComponent($$splitComponentImporter$3, "component")
 });
-const $$splitComponentImporter$2 = () => import("./start.ssr.spa-mode-o_osPZ2j.mjs");
+const $$splitComponentImporter$2 = () => import("./start.ssr.spa-mode-DTQfmC7f.mjs");
 const Route$2 = createFileRoute("/demo/start/ssr/spa-mode")({
   ssr: false,
   component: lazyRouteComponent($$splitComponentImporter$2, "component")
@@ -113,12 +113,12 @@ const Route$2 = createFileRoute("/demo/start/ssr/spa-mode")({
 const getPunkSongs = createServerFn({
   method: "GET"
 }).handler(createSsrRpc("f74da881407a186b78a7af058df21dafb0126eb11e5a4d54fd322e8feb5038f1"));
-const $$splitComponentImporter$1 = () => import("./start.ssr.full-ssr-BfD_Cg8C.mjs");
+const $$splitComponentImporter$1 = () => import("./start.ssr.full-ssr-z9U05eSB.mjs");
 const Route$1 = createFileRoute("/demo/start/ssr/full-ssr")({
   component: lazyRouteComponent($$splitComponentImporter$1, "component"),
   loader: async () => await getPunkSongs()
 });
-const $$splitComponentImporter = () => import("./start.ssr.data-only-hk_39T1-.mjs");
+const $$splitComponentImporter = () => import("./start.ssr.data-only-BDssljuN.mjs");
 const Route = createFileRoute("/demo/start/ssr/data-only")({
   ssr: "data-only",
   component: lazyRouteComponent($$splitComponentImporter, "component"),

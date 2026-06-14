@@ -2373,7 +2373,7 @@ function Header() {
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pointer-events-none absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-primary/70 via-primary/20 to-transparent" })
   ] });
 }
-const MapView = reactExports.lazy(() => import("./MapView--pwxfuhB.mjs").then((m) => ({
+const MapView = reactExports.lazy(() => import("./MapView-CkDuPQIC.mjs").then((m) => ({
   default: m.MapView
 })));
 function App() {

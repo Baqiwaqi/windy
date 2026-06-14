@@ -151,13 +151,26 @@ const TileLayer = createTileLayerComponent(function createTileLayer({ url, ...op
     layer.setUrl(url);
   }
 });
+const WMSTileLayer = createTileLayerComponent(function createWMSTileLayer({ eventHandlers: _eh, params = {}, url, ...options }, context) {
+  const layer = new leafletSrcExports.TileLayer.WMS(url, {
+    ...params,
+    ...withPane(options, context)
+  });
+  return createElementObject(layer, context);
+}, function updateWMSTileLayer(layer, props, prevProps) {
+  updateGridLayer(layer, props, prevProps);
+  if (props.params != null && props.params !== prevProps.params) {
+    layer.setParams(props.params);
+  }
+});
 export {
   Circle as C,
   MapContainer as M,
   Popup as P,
   TileLayer as T,
-  Marker as a,
-  CircleMarker as b,
-  useMap as c,
+  WMSTileLayer as W,
+  useMap as a,
+  Marker as b,
+  CircleMarker as c,
   useMapEvents as u
 };

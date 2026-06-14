@@ -1,7 +1,7 @@
 import { j as jsxRuntimeExports, r as reactExports } from "../_chunks/_libs/react.mjs";
-import { b as useTurbineStore, c as useThemeStore, a as useMapStore, d as distanceZones, f as findConflicts, u as useAddressStore, t as turbineColors, e as turbineTypes } from "./index-BH6HoxKO.mjs";
 import { L } from "../_libs/leaflet.mjs";
-import { M as MapContainer, T as TileLayer, u as useMapEvents, a as Marker, P as Popup, C as Circle, b as CircleMarker, c as useMap } from "../_libs/react-leaflet.mjs";
+import { b as useTurbineStore, c as useThemeStore, a as useMapStore, d as distanceZones, f as findConflicts, u as useAddressStore, t as turbineColors, e as turbineTypes } from "./index-CianWrvA.mjs";
+import { M as MapContainer, T as TileLayer, W as WMSTileLayer, u as useMapEvents, a as useMap, b as Marker, P as Popup, C as Circle, c as CircleMarker } from "../_libs/react-leaflet.mjs";
 import "../_libs/class-variance-authority.mjs";
 import "../_libs/clsx.mjs";
 import "../_libs/tailwind-merge.mjs";
@@ -260,6 +260,76 @@ function CursorManager() {
   }
   return null;
 }
+const PARCEL_MIN_ZOOM = 16;
+const esc = (v) => String(v ?? "").replace(
+  /[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]
+);
+async function fetchParcelInfo(map, latlng) {
+  const size = map.getSize();
+  const point = map.latLngToContainerPoint(latlng);
+  const bounds = map.getBounds();
+  const crs = map.options.crs ?? L.CRS.EPSG3857;
+  const sw = crs.project(bounds.getSouthWest());
+  const ne = crs.project(bounds.getNorthEast());
+  const params = new URLSearchParams({
+    service: "WMS",
+    version: "1.3.0",
+    request: "GetFeatureInfo",
+    layers: "Perceel",
+    query_layers: "Perceel",
+    crs: "EPSG:3857",
+    // WMS 1.3.0 EPSG:3857 axis order is (east, north) -> minx,miny,maxx,maxy.
+    bbox: `${sw.x},${sw.y},${ne.x},${ne.y}`,
+    width: String(size.x),
+    height: String(size.y),
+    i: String(Math.round(point.x)),
+    j: String(Math.round(point.y)),
+    info_format: "application/json",
+    feature_count: "1"
+  });
+  const res = await fetch(
+    `https://service.pdok.nl/kadaster/kadastralekaart/wms/v5_0?${params}`
+  );
+  if (!res.ok) throw new Error(`WMS ${res.status}`);
+  const json = await res.json();
+  return json.features?.[0]?.properties ?? null;
+}
+function renderParcelHtml(p) {
+  const aanduiding = [p.kadastraleGemeenteWaarde, p.sectie, p.perceelnummer].filter((v) => v != null && v !== "").join(" ") || "Onbekend perceel";
+  const area = p.kadastraleGrootteWaarde != null ? `${Number(p.kadastraleGrootteWaarde).toLocaleString("nl-NL")} m²` : "–";
+  return `<div style="font:13px/1.5 system-ui,sans-serif">
+	<strong>${esc(aanduiding)}</strong>
+	<table style="margin-top:4px;border-collapse:collapse">
+		<tr><td style="padding-right:8px;opacity:.7">Perceelnummer</td><td>${esc(p.perceelnummer)}</td></tr>
+		<tr><td style="padding-right:8px;opacity:.7">Sectie</td><td>${esc(p.sectie)}</td></tr>
+		<tr><td style="padding-right:8px;opacity:.7">Gemeente</td><td>${esc(p.kadastraleGemeenteWaarde)}</td></tr>
+		<tr><td style="padding-right:8px;opacity:.7">Oppervlakte</td><td>${esc(area)}</td></tr>
+	</table>
+</div>`;
+}
+function ParcelInfo() {
+  const map = useMap();
+  useMapEvents({
+    async click(e) {
+      if (useTurbineStore.getState().isAddMode) return;
+      if (map.getZoom() < PARCEL_MIN_ZOOM) {
+        L.popup({ maxWidth: 260 }).setLatLng(e.latlng).setContent("Zoom in further to inspect a parcel.").openOn(map);
+        return;
+      }
+      const popup = L.popup({ maxWidth: 260 }).setLatLng(e.latlng).setContent("Loading parcel…").openOn(map);
+      try {
+        const props = await fetchParcelInfo(map, e.latlng);
+        popup.setContent(
+          props ? renderParcelHtml(props) : "No parcel found here."
+        );
+      } catch {
+        popup.setContent("Could not load parcel info.");
+      }
+    }
+  });
+  return null;
+}
 function MapFlyTo() {
   const map = useMap();
   const selectedAddress = useAddressStore((s) => s.selectedAddress);
@@ -293,7 +363,21 @@ function MapView() {
           },
           theme
         ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          WMSTileLayer,
+          {
+            url: "https://service.pdok.nl/kadaster/kadastralekaart/wms/v5_0",
+            layers: "Kadastralekaart",
+            format: "image/png",
+            transparent: true,
+            version: "1.3.0",
+            crossOrigin: true,
+            zIndex: 10,
+            attribution: 'Kadaster / <a href="https://www.pdok.nl">PDOK</a>'
+          }
+        ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(MapClickHandler, {}),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ParcelInfo, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx(CursorManager, {}),
         turbines.map((turbine) => /* @__PURE__ */ jsxRuntimeExports.jsx(TurbineMarker, { turbine }, turbine.id)),
         turbines.map((turbine) => /* @__PURE__ */ jsxRuntimeExports.jsx(DistanceZones, { turbine }, `zones-${turbine.id}`)),
