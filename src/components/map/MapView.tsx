@@ -1,3 +1,4 @@
+import L from "leaflet";
 import { useEffect, useRef } from "react";
 import {
 	MapContainer,
@@ -47,6 +48,120 @@ function CursorManager() {
 	if (map) {
 		map.getContainer().style.cursor = isAddMode ? "crosshair" : "";
 	}
+
+	return null;
+}
+
+// Parcels are only rendered/queryable by PDOK below ~1:6000; ignore clicks
+// when zoomed out further than this so we don't show empty popups.
+const PARCEL_MIN_ZOOM = 16;
+
+type ParcelProps = {
+	perceelnummer?: number;
+	sectie?: string;
+	kadastraleGemeenteWaarde?: string;
+	kadastraleGrootteWaarde?: number;
+};
+
+const esc = (v: unknown) =>
+	String(v ?? "").replace(
+		/[&<>"]/g,
+		(c) =>
+			({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string,
+	);
+
+// Ask the PDOK WMS which parcel sits under the clicked pixel (GetFeatureInfo).
+async function fetchParcelInfo(
+	map: L.Map,
+	latlng: L.LatLng,
+): Promise<ParcelProps | null> {
+	const size = map.getSize();
+	const point = map.latLngToContainerPoint(latlng);
+	const bounds = map.getBounds();
+	const crs = map.options.crs ?? L.CRS.EPSG3857;
+	const sw = crs.project(bounds.getSouthWest());
+	const ne = crs.project(bounds.getNorthEast());
+
+	const params = new URLSearchParams({
+		service: "WMS",
+		version: "1.3.0",
+		request: "GetFeatureInfo",
+		layers: "Perceel",
+		query_layers: "Perceel",
+		crs: "EPSG:3857",
+		// WMS 1.3.0 EPSG:3857 axis order is (east, north) -> minx,miny,maxx,maxy.
+		bbox: `${sw.x},${sw.y},${ne.x},${ne.y}`,
+		width: String(size.x),
+		height: String(size.y),
+		i: String(Math.round(point.x)),
+		j: String(Math.round(point.y)),
+		info_format: "application/json",
+		feature_count: "1",
+	});
+
+	const res = await fetch(
+		`https://service.pdok.nl/kadaster/kadastralekaart/wms/v5_0?${params}`,
+	);
+	if (!res.ok) throw new Error(`WMS ${res.status}`);
+	const json = (await res.json()) as {
+		features?: { properties: ParcelProps }[];
+	};
+	return json.features?.[0]?.properties ?? null;
+}
+
+function renderParcelHtml(p: ParcelProps): string {
+	const aanduiding =
+		[p.kadastraleGemeenteWaarde, p.sectie, p.perceelnummer]
+			.filter((v) => v != null && v !== "")
+			.join(" ") || "Onbekend perceel";
+	const area =
+		p.kadastraleGrootteWaarde != null
+			? `${Number(p.kadastraleGrootteWaarde).toLocaleString("nl-NL")} m²`
+			: "–";
+
+	return `<div style="font:13px/1.5 system-ui,sans-serif">
+	<strong>${esc(aanduiding)}</strong>
+	<table style="margin-top:4px;border-collapse:collapse">
+		<tr><td style="padding-right:8px;opacity:.7">Perceelnummer</td><td>${esc(p.perceelnummer)}</td></tr>
+		<tr><td style="padding-right:8px;opacity:.7">Sectie</td><td>${esc(p.sectie)}</td></tr>
+		<tr><td style="padding-right:8px;opacity:.7">Gemeente</td><td>${esc(p.kadastraleGemeenteWaarde)}</td></tr>
+		<tr><td style="padding-right:8px;opacity:.7">Oppervlakte</td><td>${esc(area)}</td></tr>
+	</table>
+</div>`;
+}
+
+// Click a parcel to fetch and show its cadastral details in a popup.
+function ParcelInfo() {
+	const map = useMap();
+
+	useMapEvents({
+		async click(e) {
+			// Add-turbine clicks are owned by MapClickHandler; don't also pop a parcel.
+			if (useTurbineStore.getState().isAddMode) return;
+
+			if (map.getZoom() < PARCEL_MIN_ZOOM) {
+				L.popup({ maxWidth: 260 })
+					.setLatLng(e.latlng)
+					.setContent("Zoom in further to inspect a parcel.")
+					.openOn(map);
+				return;
+			}
+
+			const popup = L.popup({ maxWidth: 260 })
+				.setLatLng(e.latlng)
+				.setContent("Loading parcel…")
+				.openOn(map);
+
+			try {
+				const props = await fetchParcelInfo(map, e.latlng);
+				popup.setContent(
+					props ? renderParcelHtml(props) : "No parcel found here.",
+				);
+			} catch {
+				popup.setContent("Could not load parcel info.");
+			}
+		},
+	});
 
 	return null;
 }
@@ -102,6 +217,7 @@ export function MapView() {
 				attribution='Kadaster / <a href="https://www.pdok.nl">PDOK</a>'
 			/>
 			<MapClickHandler />
+			<ParcelInfo />
 			<CursorManager />
 
 			{turbines.map((turbine) => (
