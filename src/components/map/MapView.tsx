@@ -88,7 +88,9 @@ export function MapView() {
 			/>
 			{/* Dutch cadastral parcels + parcel numbers (PDOK / Kadaster BRK).
 			    Server only renders these below scale ~1:6000, so they appear on
-			    zoom-in (~zoom 16+). crossOrigin keeps PDF export canvas untainted. */}
+			    zoom-in (~zoom 16+). crossOrigin keeps PDF export canvas untainted.
+			    zIndex keeps it above the basemap: the base TileLayer remounts on
+			    theme change (key={theme}) and would otherwise repaint on top. */}
 			<WMSTileLayer
 				url="https://service.pdok.nl/kadaster/kadastralekaart/wms/v5_0"
 				layers="Kadastralekaart"
@@ -96,6 +98,7 @@ export function MapView() {
 				transparent
 				version="1.3.0"
 				crossOrigin
+				zIndex={10}
 				attribution='Kadaster / <a href="https://www.pdok.nl">PDOK</a>'
 			/>
 			<MapClickHandler />
