@@ -173,3 +173,6 @@ html, body, #root {
 .leaflet-tooltip.owner-label::before {
   display: none;
 }
+.leaflet-container.owner-labels-hidden .owner-label {
+  display: none;
+}

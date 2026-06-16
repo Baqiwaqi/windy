@@ -1,4 +1,5 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { type OwnerRow, OwnersPanel } from "@/components/admin/OwnersPanel";
 import { type ParcelRow, ParcelsPanel } from "@/components/admin/ParcelsPanel";
@@ -71,6 +72,13 @@ function Admin() {
 		<div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-12">
 			<div className="flex items-start justify-between gap-4">
 				<div>
+					<Link
+						to="/"
+						className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+					>
+						<ArrowLeft className="size-3.5" />
+						Naar de kaart
+					</Link>
 					<h1 className="text-2xl font-semibold">Admin</h1>
 					<p className="text-sm text-muted-foreground">
 						Windpark-analyse — beheerdersomgeving

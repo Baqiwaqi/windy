@@ -1,6 +1,7 @@
 import type { Feature, FeatureCollection, Geometry } from "geojson";
-import type { Layer } from "leaflet";
-import { GeoJSON } from "react-leaflet";
+import type { Layer, Map as LeafletMap } from "leaflet";
+import { useEffect } from "react";
+import { GeoJSON, useMap, useMapEvents } from "react-leaflet";
 import { ownerColor } from "@/lib/ownerColors";
 import { useOwnerStore } from "@/stores/ownerStore";
 
@@ -11,12 +12,28 @@ interface ParcelProps {
 	eigenaar: string;
 }
 
+// Below this zoom the per-parcel labels overlap into noise, so we hide them
+// (the colored polygons stay visible). Names appear once you zoom in.
+const LABEL_MIN_ZOOM = 14;
+
+function applyLabelVisibility(map: LeafletMap) {
+	map
+		.getContainer()
+		.classList.toggle("owner-labels-hidden", map.getZoom() < LABEL_MIN_ZOOM);
+}
+
 /** Admin-only vector overlay: parcels drawn as polygons colored per owner, each
- *  carrying a permanent owner-name label and a detail popup. */
+ *  carrying an owner-name label (hidden when zoomed out) and a detail popup. */
 export function OwnerOverlay() {
 	const enabled = useOwnerStore((s) => s.enabled);
 	const parcels = useOwnerStore((s) => s.parcels);
 	const owners = useOwnerStore((s) => s.owners);
+
+	const map = useMap();
+	useMapEvents({ zoomend: () => applyLabelVisibility(map) });
+	useEffect(() => {
+		if (enabled) applyLabelVisibility(map);
+	}, [map, enabled]);
 
 	if (!enabled) return null;
 
