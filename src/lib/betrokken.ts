@@ -18,10 +18,10 @@ export interface TurbinePoint {
 }
 
 /** The parcel whose polygon contains the turbine, or null if none does. */
-export function turbineParcel(
+export function turbineParcel<T extends ParcelGeometry>(
 	turbine: TurbinePoint,
-	parcels: ParcelGeometry[],
-): ParcelGeometry | null {
+	parcels: T[],
+): T | null {
 	const pt = point([turbine.lng, turbine.lat]);
 	return parcels.find((p) => booleanPointInPolygon(pt, p.geometry)) ?? null;
 }
