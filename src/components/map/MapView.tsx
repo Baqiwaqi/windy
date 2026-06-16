@@ -15,6 +15,7 @@ import { AddressMarker } from "./AddressMarker";
 import { AffectedAddressMarkers } from "./AffectedAddressMarkers";
 import { DistanceZones } from "./DistanceZones";
 import { MinDistCircle } from "./MinDistCircle";
+import { OwnerOverlay } from "./OwnerOverlay";
 import { TurbineMarker } from "./TurbineMarker";
 
 const TILE_URLS = {
@@ -219,6 +220,7 @@ export function MapView() {
 			<MapClickHandler />
 			<ParcelInfo />
 			<CursorManager />
+			<OwnerOverlay />
 
 			{turbines.map((turbine) => (
 				<TurbineMarker key={turbine.id} turbine={turbine} />

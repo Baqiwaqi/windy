@@ -3,6 +3,7 @@ import {
 	Check,
 	Download,
 	FolderOpen,
+	Globe2,
 	Save,
 	Trash2,
 	Upload,
@@ -22,8 +23,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { turbineTypes } from "@/lib/turbineTypes";
 import { cn } from "@/lib/utils";
+import type { StoredPreset } from "@/server/rpc";
 import { useConfigStore } from "@/stores/configStore";
 import { useMapStore } from "@/stores/mapStore";
+import { useOwnerStore } from "@/stores/ownerStore";
+import { usePresetStore } from "@/stores/presetStore";
 import { useTurbineStore } from "@/stores/turbineStore";
 import type { Configuration } from "@/types";
 
@@ -61,6 +65,12 @@ export function ConfigManager() {
 	const { turbines, loadTurbines } = useTurbineStore();
 	const { minimumTurbineDistance, setMinimumTurbineDistance } = useMapStore();
 
+	const isAdmin = useOwnerStore((s) => s.isAdmin);
+	const presets = usePresetStore((s) => s.presets);
+	const loadPresets = usePresetStore((s) => s.load);
+	const publishPresetAction = usePresetStore((s) => s.publish);
+	const removePreset = usePresetStore((s) => s.remove);
+
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 	const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,6 +83,10 @@ export function ConfigManager() {
 		},
 		[],
 	);
+
+	useEffect(() => {
+		loadPresets();
+	}, [loadPresets]);
 
 	const flash = (message: string) => {
 		if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
@@ -120,6 +134,37 @@ export function ConfigManager() {
 		);
 		setActiveConfig(config.id);
 		flash(`"${config.name}" geladen`);
+	};
+
+	const handleLoadPreset = (preset: StoredPreset) => {
+		setMinimumTurbineDistance(preset.minimumDistance || 800);
+		loadTurbines(
+			preset.turbines.map((td) => ({
+				latlng: td.latlng,
+				typeIndex: td.typeIndex,
+				type: turbineTypes[td.typeIndex] ?? td.type,
+			})),
+		);
+		flash(`"${preset.name}" geladen`);
+	};
+
+	const handlePublish = async () => {
+		const name = form.getValues("name").trim();
+		if (!name) {
+			form.setError("name", { message: "Naam is verplicht" });
+			return;
+		}
+		await publishPresetAction({
+			name,
+			turbines: turbines.map((t) => ({
+				latlng: t.latlng,
+				typeIndex: t.typeIndex,
+				type: t.type,
+			})),
+			minimumDistance: minimumTurbineDistance,
+		});
+		form.reset();
+		flash(`"${name}" gepubliceerd`);
 	};
 
 	const handleDeleteClick = (id: number) => {
@@ -210,6 +255,20 @@ export function ConfigManager() {
 											<Save className="size-3.5" />
 											<span className="sr-only">Opslaan</span>
 										</Button>
+										{isAdmin && (
+											<Button
+												type="button"
+												onClick={handlePublish}
+												size="sm"
+												variant="secondary"
+												className="h-8 shrink-0 px-2.5"
+												disabled={!canSave}
+												title="Publiceren als preset voor iedereen"
+											>
+												<Globe2 className="size-3.5" />
+												<span className="sr-only">Publiceren</span>
+											</Button>
+										)}
 									</div>
 								</FormControl>
 								<FormMessage />
@@ -324,6 +383,50 @@ export function ConfigManager() {
 					})
 				)}
 			</div>
+
+			{presets.length > 0 && (
+				<div className="space-y-2">
+					<p className="text-xs font-medium text-muted-foreground">
+						Gepubliceerde presets
+					</p>
+					{presets.map((preset) => (
+						<div
+							key={preset.id}
+							className="rounded-lg border border-border p-2.5 text-sm"
+						>
+							<div className="mb-2 flex items-center justify-between gap-2">
+								<p className="truncate font-medium">{preset.name}</p>
+								<span className="shrink-0 text-[10px] text-muted-foreground">
+									{preset.turbines.length} turbine
+									{preset.turbines.length !== 1 ? "s" : ""}
+								</span>
+							</div>
+							<div className="flex items-center gap-1">
+								<Button
+									onClick={() => handleLoadPreset(preset)}
+									size="sm"
+									className="h-7 flex-1 gap-1.5 text-xs"
+								>
+									<FolderOpen className="size-3" />
+									Laden
+								</Button>
+								{isAdmin && (
+									<Button
+										onClick={() => removePreset(preset.id)}
+										variant="ghost"
+										size="sm"
+										className="size-7 p-0 text-muted-foreground hover:text-destructive"
+										title="Preset verwijderen"
+									>
+										<Trash2 className="size-3.5" />
+										<span className="sr-only">Verwijderen</span>
+									</Button>
+								)}
+							</div>
+						</div>
+					))}
+				</div>
+			)}
 
 			<Button
 				onClick={handleImportJson}

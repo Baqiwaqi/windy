@@ -1,7 +1,10 @@
+import { Link } from "@tanstack/react-router";
+import { ShieldCheck } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAddressStore } from "@/stores/addressStore";
 import { useMapStore } from "@/stores/mapStore";
+import { useOwnerStore } from "@/stores/ownerStore";
 import { useTurbineStore } from "@/stores/turbineStore";
 
 function Stat({
@@ -35,6 +38,7 @@ export function Header() {
 	const isAddMode = useTurbineStore((s) => s.isAddMode);
 	const affectedAddresses = useAddressStore((s) => s.affectedAddresses);
 	const hinderDistance = useMapStore((s) => s.hinderDistance);
+	const isAdmin = useOwnerStore((s) => s.isAdmin);
 
 	const totalPower = turbines.reduce((sum, t) => sum + t.type.power, 0);
 	const powerLabel =
@@ -71,6 +75,17 @@ export function Header() {
 					/>
 				)}
 			</div>
+
+			{isAdmin && (
+				<Link
+					to="/admin"
+					className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					title="Beheerdersomgeving"
+				>
+					<ShieldCheck className="size-3.5" />
+					<span className="hidden sm:inline">Admin</span>
+				</Link>
+			)}
 
 			<ThemeToggle />
 

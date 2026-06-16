@@ -1,8 +1,12 @@
 import { FileDown } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { parcelDistance, turbineParcel } from "@/lib/betrokken";
+import { listOwnerParcels } from "@/server/rpc";
 import { useAddressStore } from "@/stores/addressStore";
 import { useMapStore } from "@/stores/mapStore";
+import type { OwnerDoc, OwnerParcel } from "@/stores/ownerStore";
+import { useOwnerStore } from "@/stores/ownerStore";
 import { useTurbineStore } from "@/stores/turbineStore";
 
 export function PdfExport() {
@@ -10,6 +14,7 @@ export function PdfExport() {
 	const turbines = useTurbineStore((s) => s.turbines);
 	const affectedAddresses = useAddressStore((s) => s.affectedAddresses);
 	const hinderDistance = useMapStore((s) => s.hinderDistance);
+	const isAdmin = useOwnerStore((s) => s.isAdmin);
 
 	const handleExport = async () => {
 		setExporting(true);
@@ -136,6 +141,99 @@ export function PdfExport() {
 						10,
 						position,
 					);
+				}
+			}
+
+			// Owner sections (admin only). Owner data is fetched on demand and
+			// never reaches non-admins.
+			if (isAdmin && turbines.length > 0) {
+				let ownerData: { parcels: OwnerParcel[]; owners: OwnerDoc[] } | null =
+					null;
+				try {
+					const res = await listOwnerParcels();
+					ownerData = {
+						parcels: res.parcels as OwnerParcel[],
+						owners: res.owners as OwnerDoc[],
+					};
+				} catch {
+					ownerData = null;
+				}
+
+				const geoParcels = (ownerData?.parcels ?? []).filter(
+					(
+						p,
+					): p is OwnerParcel & {
+						geometry: NonNullable<OwnerParcel["geometry"]>;
+					} => p.geometry != null,
+				);
+
+				if (ownerData && geoParcels.length > 0) {
+					const owners = ownerData.owners;
+					const ownerName = (code: string) => {
+						const o = owners.find((x) => x.naamcode === code);
+						return o
+							? `${o.voornaam} ${o.achternaam}`.trim() || o.achternaam
+							: code;
+					};
+
+					pdf.addPage();
+					position = 20;
+					pdf.setFontSize(14);
+					pdf.text("Eigenaren per turbine", 10, position);
+					position += 8;
+					pdf.setFontSize(10);
+					for (let idx = 0; idx < turbines.length; idx++) {
+						const parcel = turbineParcel(turbines[idx].latlng, geoParcels);
+						const label = parcel
+							? `${parcel.gemeente} ${parcel.sectie} ${parcel.perceelnummer} — ${ownerName(parcel.naamcode)}`
+							: "geen perceel onder turbine";
+						pdf.text(`Turbine ${idx + 1}: ${label}`, 10, position);
+						position += 6;
+						if (position > pdfHeight - 20) {
+							pdf.addPage();
+							position = 20;
+						}
+					}
+
+					// Betrokken grondeigenaren: parcels within any turbine's rotor
+					// radius, counted per owner (only the involved parcels).
+					const involvedByOwner = new Map<string, number>();
+					for (const p of geoParcels) {
+						const involved = turbines.some(
+							(t) => parcelDistance(t.latlng, p) <= t.type.rotorDiameter / 2,
+						);
+						if (involved) {
+							involvedByOwner.set(
+								p.naamcode,
+								(involvedByOwner.get(p.naamcode) ?? 0) + 1,
+							);
+						}
+					}
+					const sorted = [...involvedByOwner.keys()].sort((a, b) =>
+						ownerName(a).localeCompare(ownerName(b)),
+					);
+
+					position += 6;
+					pdf.setFontSize(14);
+					pdf.text("Betrokken grondeigenaren", 10, position);
+					position += 8;
+					pdf.setFontSize(10);
+					if (sorted.length === 0) {
+						pdf.text("Geen percelen binnen de overdraaistraal.", 10, position);
+					}
+					for (const code of sorted) {
+						const count = involvedByOwner.get(code) ?? 0;
+						pdf.text(
+							`- ${ownerName(code)} (${count} perceel${count !== 1 ? "en" : ""})`,
+							10,
+							position,
+						);
+						position += 6;
+						if (position > pdfHeight - 20) {
+							pdf.addPage();
+							position = 20;
+						}
+					}
 				}
 			}
 
