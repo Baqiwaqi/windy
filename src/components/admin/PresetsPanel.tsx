@@ -1,31 +1,46 @@
 import { useRouter } from "@tanstack/react-router";
 import { Check, Pencil, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { deletePreset, renamePreset, type StoredPreset } from "@/server/rpc";
 
 export function PresetsPanel({ presets }: { presets: StoredPreset[] }) {
 	const router = useRouter();
+	// Local copy so deletes can update the UI optimistically; re-synced whenever
+	// the loader returns fresh data.
+	const [items, setItems] = useState(presets);
+	useEffect(() => setItems(presets), [presets]);
+
 	const [editing, setEditing] = useState<string | null>(null);
 	const [name, setName] = useState("");
 	const [error, setError] = useState<string | null>(null);
 
-	const run = async (
-		fn: () => Promise<unknown>,
-		after: () => void = () => {},
-	) => {
+	const onRename = async (id: string) => {
 		setError(null);
 		try {
-			await fn();
-			after();
+			await renamePreset({ data: { id, name } });
+			setEditing(null);
 			router.invalidate();
 		} catch (e) {
-			setError(e instanceof Error ? e.message : "Er ging iets mis");
+			setError(e instanceof Error ? e.message : "Hernoemen mislukt");
 		}
 	};
 
-	if (presets.length === 0) {
+	const onDelete = async (id: string) => {
+		setError(null);
+		const previous = items;
+		setItems((list) => list.filter((p) => p.id !== id)); // optimistic
+		try {
+			await deletePreset({ data: { id } });
+			router.invalidate();
+		} catch (e) {
+			setItems(previous); // rollback
+			setError(e instanceof Error ? e.message : "Verwijderen mislukt");
+		}
+	};
+
+	if (items.length === 0) {
 		return (
 			<p className="text-sm text-muted-foreground">
 				Nog geen presets. Publiceer een opstelling vanaf de kaart.
@@ -36,7 +51,7 @@ export function PresetsPanel({ presets }: { presets: StoredPreset[] }) {
 	return (
 		<div className="space-y-1.5">
 			{error && <p className="text-xs text-destructive">{error}</p>}
-			{presets.map((preset) =>
+			{items.map((preset) =>
 				editing === preset.id ? (
 					<div
 						key={preset.id}
@@ -51,12 +66,7 @@ export function PresetsPanel({ presets }: { presets: StoredPreset[] }) {
 						<Button
 							size="sm"
 							className="size-8 shrink-0 p-0"
-							onClick={() =>
-								run(
-									() => renamePreset({ data: { id: preset.id, name } }),
-									() => setEditing(null),
-								)
-							}
+							onClick={() => onRename(preset.id)}
 						>
 							<Check className="size-4" />
 						</Button>
@@ -99,9 +109,7 @@ export function PresetsPanel({ presets }: { presets: StoredPreset[] }) {
 								size="sm"
 								variant="ghost"
 								className="size-8 p-0 text-muted-foreground hover:text-destructive"
-								onClick={() =>
-									run(() => deletePreset({ data: { id: preset.id } }))
-								}
+								onClick={() => onDelete(preset.id)}
 							>
 								<Trash2 className="size-3.5" />
 							</Button>
