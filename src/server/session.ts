@@ -15,13 +15,17 @@ function sign(payload: string, secret: string): string {
 	return createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
-/** Build a signed session token: base64url(payload).hmac. */
-export function createSessionToken(user: SessionUser): string {
-	const payload = Buffer.from(JSON.stringify(user)).toString("base64url");
+/** Build a signed session token: base64url(payload).hmac, with an expiry. */
+export function createSessionToken(
+	user: SessionUser,
+	maxAgeSec = DEFAULT_MAX_AGE,
+): string {
+	const body = { ...user, exp: Date.now() + maxAgeSec * 1000 };
+	const payload = Buffer.from(JSON.stringify(body)).toString("base64url");
 	return `${payload}.${sign(payload, getEnv().SESSION_SECRET)}`;
 }
 
-/** Verify a session token's signature and decode it, or null if invalid. */
+/** Verify a session token's signature + expiry and decode it, or null. */
 export function verifySessionToken(
 	token: string | null | undefined,
 ): SessionUser | null {
@@ -35,9 +39,11 @@ export function verifySessionToken(
 		return null;
 	}
 	try {
-		return JSON.parse(
+		const body = JSON.parse(
 			Buffer.from(payload, "base64url").toString(),
-		) as SessionUser;
+		) as SessionUser & { exp?: number };
+		if (typeof body.exp === "number" && body.exp < Date.now()) return null;
+		return { sub: body.sub, email: body.email, name: body.name };
 	} catch {
 		return null;
 	}

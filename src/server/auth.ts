@@ -53,7 +53,13 @@ export async function exchangeCode(
 		code,
 		codeVerifier,
 	);
-	return decodeIdToken(tokens.idToken()) as GoogleClaims;
+	const claims = decodeIdToken(tokens.idToken()) as GoogleClaims;
+	// Only trust `email` as an identity when Google says it is verified — the
+	// admin allowlist keys off the email address.
+	if (!claims.email || claims.email_verified !== true) {
+		throw new Error("Google account email is not verified");
+	}
+	return claims;
 }
 
 /** The signed-in user from the request's session cookie, or null. */
@@ -76,8 +82,11 @@ export async function loadUser(sub: string): Promise<StoredUser | null> {
 /** The effective role for a signed-in user (allowlist + stored grant). */
 export async function getRole(user: SessionUser | null): Promise<Role> {
 	if (!user) return "user";
+	const adminEmails = getEnv().adminEmails;
+	// Allowlisted emails are admin regardless of any stored record — skip the DB.
+	if (resolveRole(user.email, null, adminEmails) === "admin") return "admin";
 	const stored = await loadUser(user.sub);
-	return resolveRole(user.email, stored, getEnv().adminEmails);
+	return resolveRole(user.email, stored, adminEmails);
 }
 
 /** Throw a 403 Response unless the request belongs to an admin. */

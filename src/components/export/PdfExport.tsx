@@ -1,7 +1,7 @@
 import { FileDown } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ownersWithinRadius, turbineParcel } from "@/lib/betrokken";
+import { parcelDistance, turbineParcel } from "@/lib/betrokken";
 import { listOwnerParcels } from "@/server/rpc";
 import { useAddressStore } from "@/stores/addressStore";
 import { useMapStore } from "@/stores/mapStore";
@@ -195,19 +195,21 @@ export function PdfExport() {
 						}
 					}
 
-					// Betrokken grondeigenaren: owners within each turbine's rotor radius.
-					const betrokken = new Set<string>();
-					for (const t of turbines) {
-						const radius = t.type.rotorDiameter / 2;
-						for (const code of ownersWithinRadius(
-							[t.latlng],
-							radius,
-							geoParcels,
-						)) {
-							betrokken.add(code);
+					// Betrokken grondeigenaren: parcels within any turbine's rotor
+					// radius, counted per owner (only the involved parcels).
+					const involvedByOwner = new Map<string, number>();
+					for (const p of geoParcels) {
+						const involved = turbines.some(
+							(t) => parcelDistance(t.latlng, p) <= t.type.rotorDiameter / 2,
+						);
+						if (involved) {
+							involvedByOwner.set(
+								p.naamcode,
+								(involvedByOwner.get(p.naamcode) ?? 0) + 1,
+							);
 						}
 					}
-					const sorted = [...betrokken].sort((a, b) =>
+					const sorted = [...involvedByOwner.keys()].sort((a, b) =>
 						ownerName(a).localeCompare(ownerName(b)),
 					);
 
@@ -220,7 +222,7 @@ export function PdfExport() {
 						pdf.text("Geen percelen binnen de overdraaistraal.", 10, position);
 					}
 					for (const code of sorted) {
-						const count = geoParcels.filter((p) => p.naamcode === code).length;
+						const count = involvedByOwner.get(code) ?? 0;
 						pdf.text(
 							`- ${ownerName(code)} (${count} perceel${count !== 1 ? "en" : ""})`,
 							10,

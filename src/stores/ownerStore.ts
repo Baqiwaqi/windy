@@ -59,6 +59,9 @@ export const useOwnerStore = create<OwnerState>((set, get) => ({
 				owners: owners as OwnerDoc[],
 				loaded: true,
 			});
+		} catch (err) {
+			console.error("Kon eigenaren-data niet laden", err);
+			set({ enabled: false });
 		} finally {
 			set({ loading: false });
 		}
