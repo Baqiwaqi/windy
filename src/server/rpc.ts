@@ -146,6 +146,20 @@ export const publishPreset = createServerFn({ method: "POST" })
 		return preset;
 	});
 
+export const renamePreset = createServerFn({ method: "POST" })
+	.inputValidator((d: { id: string; name: string }) => d)
+	.handler(async ({ data }) => {
+		await requireAdminUser();
+		const name = data.name.trim();
+		if (!name) throw new Error("Naam is verplicht");
+		const { resource } = await container("presets")
+			.item(data.id, data.id)
+			.read<StoredPreset>();
+		if (!resource) throw new Error("Preset niet gevonden");
+		await container("presets").items.upsert({ ...resource, name });
+		return { ok: true };
+	});
+
 export const deletePreset = createServerFn({ method: "POST" })
 	.inputValidator((d: { id: string }) => d)
 	.handler(async ({ data }) => {

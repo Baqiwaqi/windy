@@ -3,11 +3,11 @@ import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { type OwnerRow, OwnersPanel } from "@/components/admin/OwnersPanel";
 import { type ParcelRow, ParcelsPanel } from "@/components/admin/ParcelsPanel";
+import { PresetsPanel } from "@/components/admin/PresetsPanel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
 	approveRequestFn,
-	deletePreset,
 	denyRequestFn,
 	getOwnerDataStats,
 	getSession,
@@ -225,44 +225,7 @@ function Admin() {
 						<ParcelsPanel parcels={parcels} owners={owners} />
 					)}
 
-					{tab === "presets" && (
-						<div className="space-y-2">
-							{presets.length === 0 ? (
-								<p className="text-sm text-muted-foreground">
-									Nog geen presets. Publiceer een opstelling vanaf de kaart.
-								</p>
-							) : (
-								presets.map((preset) => (
-									<div
-										key={preset.id}
-										className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 text-sm"
-									>
-										<div className="min-w-0">
-											<p className="truncate font-medium">{preset.name}</p>
-											<p className="truncate text-xs text-muted-foreground">
-												{preset.turbines.length} turbine
-												{preset.turbines.length !== 1 ? "s" : ""}
-												{preset.minimumDistance
-													? ` · ${preset.minimumDistance} m`
-													: ""}
-											</p>
-										</div>
-										<Button
-											size="sm"
-											variant="ghost"
-											className="h-7 shrink-0 text-muted-foreground hover:text-destructive"
-											onClick={async () => {
-												await deletePreset({ data: { id: preset.id } });
-												invalidate();
-											}}
-										>
-											Verwijderen
-										</Button>
-									</div>
-								))
-							)}
-						</div>
-					)}
+					{tab === "presets" && <PresetsPanel presets={presets} />}
 				</>
 			)}
 		</div>
