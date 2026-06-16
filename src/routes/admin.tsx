@@ -1,51 +1,41 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
-import { deleteCookie, getRequest } from "@tanstack/react-start/server";
 import { Button } from "@/components/ui/button";
-import { requestAdmin as applyRequestAdmin } from "@/lib/roles";
-import { getRole, getSessionUser, loadUser } from "@/server/auth";
-import { container } from "@/server/cosmos";
-import { SESSION_COOKIE } from "@/server/session";
-
-const getMe = createServerFn({ method: "GET" }).handler(async () => {
-	const user = getSessionUser(getRequest());
-	const role = await getRole(user);
-	const stored = user ? await loadUser(user.sub) : null;
-	return { user, role, request: stored?.request ?? null };
-});
-
-const requestAdminFn = createServerFn({ method: "POST" }).handler(async () => {
-	const user = getSessionUser(getRequest());
-	if (!user) throw new Error("Unauthorized");
-	const stored = await loadUser(user.sub);
-	const base =
-		stored ?? ({ id: user.sub, email: user.email, role: "user" } as const);
-	const updated = applyRequestAdmin(base, new Date().toISOString());
-	await container("users").items.upsert({ ...updated, id: user.sub });
-	return { request: updated.request };
-});
-
-const logoutFn = createServerFn({ method: "POST" }).handler(async () => {
-	deleteCookie(SESSION_COOKIE, { path: "/" });
-	return { ok: true };
-});
+import {
+	approveRequestFn,
+	denyRequestFn,
+	getSession,
+	listPendingRequests,
+	logoutFn,
+	requestAdminFn,
+} from "@/server/rpc";
 
 export const Route = createFileRoute("/admin")({
 	component: Admin,
-	loader: async () => await getMe(),
+	loader: async () => {
+		const session = await getSession();
+		const pending = session.role === "admin" ? await listPendingRequests() : [];
+		return { session, pending };
+	},
 });
 
 function Admin() {
 	const router = useRouter();
-	const me = Route.useLoaderData();
+	const { session, pending } = Route.useLoaderData();
 
 	const onRequestAdmin = async () => {
 		await requestAdminFn();
 		router.invalidate();
 	};
-
 	const onLogout = async () => {
 		await logoutFn();
+		router.invalidate();
+	};
+	const onApprove = async (sub: string) => {
+		await approveRequestFn({ data: { sub } });
+		router.invalidate();
+	};
+	const onDeny = async (sub: string) => {
+		await denyRequestFn({ data: { sub } });
 		router.invalidate();
 	};
 
@@ -58,7 +48,7 @@ function Admin() {
 				</p>
 			</div>
 
-			{!me.user ? (
+			{!session.user ? (
 				<div className="space-y-3">
 					<p className="text-sm text-muted-foreground">
 						Log in om beheerfuncties te gebruiken.
@@ -70,29 +60,65 @@ function Admin() {
 			) : (
 				<div className="space-y-4">
 					<div className="rounded-lg border border-border p-4 text-sm">
-						<p className="font-medium">{me.user.name ?? me.user.email}</p>
-						<p className="text-muted-foreground">{me.user.email}</p>
+						<p className="font-medium">
+							{session.user.name ?? session.user.email}
+						</p>
+						<p className="text-muted-foreground">{session.user.email}</p>
 						<p className="mt-2">
 							Rol:{" "}
 							<span className="font-medium">
-								{me.role === "admin" ? "Beheerder" : "Gebruiker"}
+								{session.role === "admin" ? "Beheerder" : "Gebruiker"}
 							</span>
 						</p>
 					</div>
 
-					{me.role === "admin" ? (
-						<div className="rounded-lg border border-primary/40 bg-accent/40 p-4 text-sm">
-							<p className="font-medium">Beheerderstoegang actief</p>
-							<p className="mt-1 text-muted-foreground">
-								Aanvragen goedkeuren, presets publiceren en eigenaren-export
-								komen hier.
-							</p>
+					{session.role === "admin" ? (
+						<div className="space-y-2">
+							<h2 className="text-sm font-medium">Aanvragen</h2>
+							{pending.length === 0 ? (
+								<p className="text-xs text-muted-foreground">
+									Geen openstaande aanvragen.
+								</p>
+							) : (
+								pending.map((p) => (
+									<div
+										key={p.sub}
+										className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 text-sm"
+									>
+										<div className="min-w-0">
+											<p className="truncate font-medium">
+												{p.name ?? p.email}
+											</p>
+											<p className="truncate text-xs text-muted-foreground">
+												{p.email}
+											</p>
+										</div>
+										<div className="flex shrink-0 gap-1">
+											<Button
+												size="sm"
+												className="h-7"
+												onClick={() => onApprove(p.sub)}
+											>
+												Goedkeuren
+											</Button>
+											<Button
+												size="sm"
+												variant="ghost"
+												className="h-7"
+												onClick={() => onDeny(p.sub)}
+											>
+												Afwijzen
+											</Button>
+										</div>
+									</div>
+								))
+							)}
 						</div>
-					) : me.request?.status === "pending" ? (
+					) : session.request?.status === "pending" ? (
 						<p className="text-sm text-muted-foreground">
 							Je aanvraag voor beheerderstoegang is in behandeling.
 						</p>
-					) : me.request?.status === "denied" ? (
+					) : session.request?.status === "denied" ? (
 						<div className="space-y-2">
 							<p className="text-sm text-muted-foreground">
 								Je aanvraag is afgewezen.
