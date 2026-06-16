@@ -12,8 +12,8 @@ anonymously.
 A Member whose email is in the bootstrap allowlist, or who has been granted the
 admin role by an existing Admin. Unlocks: publishing shared Presets, viewing
 landowner overlays on the map, generating exports that include owner data, and
-approving Admin requests. The admin entry point is unadvertised (hidden from
-Visitors), but admin powers are enforced server-side regardless of who finds it.
+approving Admin requests. The admin entry point lives at `/admin`, but admin
+powers are enforced server-side regardless of who finds it.
 
 **Member**:
 A person signed in with Google who is not (yet) an Admin. Has the same

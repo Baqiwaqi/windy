@@ -56,13 +56,19 @@ export function clearedSessionCookie(): string {
 	return `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
 }
 
+/** Read a named cookie value out of a Cookie header. */
+export function readCookie(
+	cookieHeader: string | null | undefined,
+	name: string,
+): string | null {
+	if (!cookieHeader) return null;
+	const match = cookieHeader.match(new RegExp(`(?:^|; )${name}=([^;]+)`));
+	return match ? match[1] : null;
+}
+
 /** Read the raw session token out of a Cookie header. */
 export function readSessionCookie(
 	cookieHeader: string | null | undefined,
 ): string | null {
-	if (!cookieHeader) return null;
-	const match = cookieHeader.match(
-		new RegExp(`(?:^|; )${SESSION_COOKIE}=([^;]+)`),
-	);
-	return match ? match[1] : null;
+	return readCookie(cookieHeader, SESSION_COOKIE);
 }
