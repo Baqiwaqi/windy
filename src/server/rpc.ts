@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { deleteCookie, getRequest } from "@tanstack/react-start/server";
+import { safeId } from "@/lib/cosmosId";
 import { validateOwnerPatch } from "@/lib/ownerAdmin";
 import {
 	requestAdmin as applyRequestAdmin,
@@ -189,8 +190,6 @@ export const getOwnerDataStats = createServerFn({ method: "GET" }).handler(
 );
 
 // ── Owner / parcel management (admin only) ───────────────────────────────────
-
-const safeId = (s: string) => s.replace(/[/\\?#]/g, "-");
 
 export const listOwners = createServerFn({ method: "GET" }).handler(
 	async () => {

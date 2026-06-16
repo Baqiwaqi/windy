@@ -10,7 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { filterParcels } from "@/lib/ownerAdmin";
+import { filterParcels, validateReassign } from "@/lib/ownerAdmin";
 import { deleteParcel, updateParcel } from "@/server/rpc";
 import type { OwnerRow } from "./OwnersPanel";
 
@@ -35,6 +35,7 @@ export function ParcelsPanel({
 	const [error, setError] = useState<string | null>(null);
 
 	const filtered = filterParcels(parcels, q);
+	const knownCodes = owners.map((o) => o.naamcode);
 	const sortedOwners = [...owners].sort((a, b) =>
 		a.achternaam.localeCompare(b.achternaam),
 	);
@@ -46,6 +47,13 @@ export function ParcelsPanel({
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "Er ging iets mis");
 		}
+	};
+	const reassign = (id: string, naamcode: string) => {
+		if (!validateReassign(naamcode, knownCodes)) {
+			setError("Onbekende eigenaar");
+			return;
+		}
+		run(() => updateParcel({ data: { id, naamcode } }));
 	};
 
 	return (
@@ -76,9 +84,7 @@ export function ParcelsPanel({
 						<div className="flex shrink-0 items-center gap-1">
 							<Select
 								value={p.naamcode}
-								onValueChange={(naamcode) =>
-									run(() => updateParcel({ data: { id: p.id, naamcode } }))
-								}
+								onValueChange={(naamcode) => reassign(p.id, naamcode)}
 							>
 								<SelectTrigger className="h-8 w-44 text-xs">
 									<SelectValue placeholder="Eigenaar…" />

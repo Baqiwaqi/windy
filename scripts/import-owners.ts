@@ -12,6 +12,7 @@ import "dotenv/config";
 import process from "node:process";
 import ExcelJS from "exceljs";
 import type { MultiPolygon, Polygon } from "geojson";
+import { safeId } from "@/lib/cosmosId";
 import {
 	type NormalizedParcel,
 	normalizeOwners,
@@ -89,9 +90,6 @@ async function fetchParcelGeometry(
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** Cosmos item ids may not contain / \ ? # — replace those with '-'. */
-const safeId = (s: string) => s.replace(/[/\\?#]/g, "-");
 
 async function main() {
 	const xlsxPath = process.argv[2] ?? process.env.OWNERS_XLSX;
