@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { deleteCookie, getRequest } from "@tanstack/react-start/server";
+import { validateOwnerPatch } from "@/lib/ownerAdmin";
 import {
 	requestAdmin as applyRequestAdmin,
 	approveRequest,
@@ -186,3 +187,115 @@ export const getOwnerDataStats = createServerFn({ method: "GET" }).handler(
 		return { parcels, parcelsWithGeometry, owners };
 	},
 );
+
+// ── Owner / parcel management (admin only) ───────────────────────────────────
+
+const safeId = (s: string) => s.replace(/[/\\?#]/g, "-");
+
+export const listOwners = createServerFn({ method: "GET" }).handler(
+	async () => {
+		await requireAdminUser();
+		const { resources } = await container("owners")
+			.items.readAll<{
+				id: string;
+				naamcode: string;
+				achternaam: string;
+				voornaam: string;
+			}>()
+			.fetchAll();
+		return resources;
+	},
+);
+
+export const createOwner = createServerFn({ method: "POST" })
+	.inputValidator(
+		(d: { naamcode: string; achternaam: string; voornaam?: string }) => d,
+	)
+	.handler(async ({ data }) => {
+		await requireAdminUser();
+		const naamcode = data.naamcode.trim();
+		if (!naamcode) throw new Error("Naamcode is verplicht");
+		const v = validateOwnerPatch(data);
+		if (!v.ok) throw new Error(v.error);
+		const id = safeId(naamcode);
+		const existing = await container("owners").item(id, id).read();
+		if (existing.resource) throw new Error("Naamcode bestaat al");
+		await container("owners").items.upsert({
+			id,
+			naamcode,
+			...v.value,
+			totaleOppervlakte: 0,
+		});
+		return { ok: true };
+	});
+
+export const updateOwner = createServerFn({ method: "POST" })
+	.inputValidator(
+		(d: { naamcode: string; achternaam: string; voornaam?: string }) => d,
+	)
+	.handler(async ({ data }) => {
+		await requireAdminUser();
+		const v = validateOwnerPatch(data);
+		if (!v.ok) throw new Error(v.error);
+		const id = safeId(data.naamcode);
+		const { resource } = await container("owners")
+			.item(id, id)
+			.read<Record<string, unknown>>();
+		if (!resource) throw new Error("Eigenaar niet gevonden");
+		await container("owners").items.upsert({
+			...resource,
+			achternaam: v.value.achternaam,
+			voornaam: v.value.voornaam,
+		});
+		return { ok: true };
+	});
+
+export const deleteOwner = createServerFn({ method: "POST" })
+	.inputValidator((d: { naamcode: string }) => d)
+	.handler(async ({ data }) => {
+		await requireAdminUser();
+		const { resources } = await container("parcels")
+			.items.query<number>({
+				query: "SELECT VALUE COUNT(1) FROM c WHERE c.naamcode = @c",
+				parameters: [{ name: "@c", value: data.naamcode }],
+			})
+			.fetchAll();
+		if ((resources[0] ?? 0) > 0) {
+			throw new Error(
+				"Eigenaar heeft nog percelen — wijs die eerst toe aan een andere eigenaar.",
+			);
+		}
+		const id = safeId(data.naamcode);
+		await container("owners").item(id, id).delete();
+		return { ok: true };
+	});
+
+export const updateParcel = createServerFn({ method: "POST" })
+	.inputValidator(
+		(d: { id: string; naamcode?: string; oppervlakte?: number }) => d,
+	)
+	.handler(async ({ data }) => {
+		await requireAdminUser();
+		const { resource } = await container("parcels")
+			.item(data.id, data.id)
+			.read<Record<string, unknown>>();
+		if (!resource) throw new Error("Perceel niet gevonden");
+		const patch: Record<string, unknown> = { ...resource };
+		if (data.naamcode !== undefined) {
+			const ownerId = safeId(data.naamcode);
+			const owner = await container("owners").item(ownerId, ownerId).read();
+			if (!owner.resource) throw new Error("Eigenaar bestaat niet");
+			patch.naamcode = data.naamcode;
+		}
+		if (data.oppervlakte !== undefined) patch.oppervlakte = data.oppervlakte;
+		await container("parcels").items.upsert(patch);
+		return { ok: true };
+	});
+
+export const deleteParcel = createServerFn({ method: "POST" })
+	.inputValidator((d: { id: string }) => d)
+	.handler(async ({ data }) => {
+		await requireAdminUser();
+		await container("parcels").item(data.id, data.id).delete();
+		return { ok: true };
+	});
