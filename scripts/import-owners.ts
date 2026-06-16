@@ -41,27 +41,40 @@ function rowsAfterHeader(rows: unknown[][], marker: string): unknown[][] {
 	return idx === -1 ? rows : rows.slice(idx + 1);
 }
 
+const xmlEscape = (s: string) =>
+	s
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/'/g, "&apos;")
+		.replace(/"/g, "&quot;");
+
 /**
- * Fetch a parcel's polygon from the PDOK WFS as GeoJSON (lon/lat). Best-effort:
- * returns null on any miss so the import still records owners + attributes.
- *
- * NOTE: verify on first run — the gemeente attribute name and CRS axis order
- * may need adjustment against the live WFS schema.
+ * Fetch a parcel's polygon from the PDOK kadastrale-kaart WFS as GeoJSON
+ * (lng/lat). PDOK runs MapServer, which ignores CQL_FILTER, so we send a
+ * standard OGC fes:Filter. Best-effort: returns null on any miss so the import
+ * still records owners + attributes. Gemeente match is case-insensitive
+ * ("vreeland" / "Vreeland").
  */
 async function fetchParcelGeometry(
 	p: NormalizedParcel,
 ): Promise<Polygon | MultiPolygon | null> {
 	if (p.locationUnknown) return null;
-	const cql = `sectie='${p.sectie}' AND perceelnummer=${p.perceelnummer} AND kadastraleGemeenteWaarde='${p.gemeente}'`;
+	const filter =
+		`<fes:Filter xmlns:fes="http://www.opengis.net/fes/2.0"><fes:And>` +
+		`<fes:PropertyIsEqualTo><fes:ValueReference>sectie</fes:ValueReference><fes:Literal>${xmlEscape(p.sectie)}</fes:Literal></fes:PropertyIsEqualTo>` +
+		`<fes:PropertyIsEqualTo><fes:ValueReference>perceelnummer</fes:ValueReference><fes:Literal>${p.perceelnummer}</fes:Literal></fes:PropertyIsEqualTo>` +
+		`<fes:PropertyIsEqualTo matchCase="false"><fes:ValueReference>kadastraleGemeenteWaarde</fes:ValueReference><fes:Literal>${xmlEscape(p.gemeente)}</fes:Literal></fes:PropertyIsEqualTo>` +
+		`</fes:And></fes:Filter>`;
 	const params = new URLSearchParams({
 		service: "WFS",
 		version: "2.0.0",
 		request: "GetFeature",
 		typeNames: "kadastralekaart:Perceel",
 		outputFormat: "application/json",
-		srsName: "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+		srsName: "urn:ogc:def:crs:EPSG::4326",
 		count: "1",
-		CQL_FILTER: cql,
+		filter,
 	});
 	try {
 		const res = await fetch(`${WFS_URL}?${params}`);
@@ -76,6 +89,9 @@ async function fetchParcelGeometry(
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Cosmos item ids may not contain / \ ? # — replace those with '-'. */
+const safeId = (s: string) => s.replace(/[/\\?#]/g, "-");
 
 async function main() {
 	const xlsxPath = process.argv[2] ?? process.env.OWNERS_XLSX;
@@ -100,7 +116,7 @@ async function main() {
 
 	console.log("Upserting owners...");
 	for (const owner of owners) {
-		await container("owners").items.upsert({ id: owner.naamcode, ...owner });
+		await container("owners").items.upsert({ id: safeId(owner.naamcode), ...owner });
 	}
 
 	console.log("Fetching parcel geometry + upserting parcels...");
@@ -108,8 +124,9 @@ async function main() {
 	for (const parcel of parcels) {
 		const geometry = await fetchParcelGeometry(parcel);
 		if (geometry) withGeometry++;
+		// oppervlakte disambiguates co-ownership + the "?" placeholder parcels.
 		await container("parcels").items.upsert({
-			id: `${parcel.key}#${parcel.naamcode}`,
+			id: safeId(`${parcel.key}|${parcel.naamcode}|${parcel.oppervlakte}`),
 			...parcel,
 			geometry,
 		});
