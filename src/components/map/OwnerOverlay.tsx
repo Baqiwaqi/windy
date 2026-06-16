@@ -7,14 +7,26 @@ import { useOwnerStore } from "@/stores/ownerStore";
 interface ParcelProps {
 	naamcode: string;
 	aanduiding: string;
+	label: string;
+	eigenaar: string;
 }
 
-/** Admin-only vector overlay: parcels drawn as polygons colored per owner. */
+/** Admin-only vector overlay: parcels drawn as polygons colored per owner, each
+ *  carrying a permanent owner-name label and a detail popup. */
 export function OwnerOverlay() {
 	const enabled = useOwnerStore((s) => s.enabled);
 	const parcels = useOwnerStore((s) => s.parcels);
+	const owners = useOwnerStore((s) => s.owners);
 
 	if (!enabled) return null;
+
+	const ownerByCode = new Map(owners.map((o) => [o.naamcode, o]));
+	const fullName = (code: string) => {
+		const o = ownerByCode.get(code);
+		if (!o) return code;
+		return `${o.voornaam} ${o.achternaam}`.trim() || o.achternaam || code;
+	};
+	const shortName = (code: string) => ownerByCode.get(code)?.achternaam || code;
 
 	const features: Feature<Geometry, ParcelProps>[] = parcels
 		.filter((p) => p.geometry)
@@ -24,6 +36,8 @@ export function OwnerOverlay() {
 			properties: {
 				naamcode: p.naamcode,
 				aanduiding: `${p.gemeente} ${p.sectie} ${p.perceelnummer}`,
+				label: shortName(p.naamcode),
+				eigenaar: fullName(p.naamcode),
 			},
 		}));
 
@@ -46,8 +60,13 @@ export function OwnerOverlay() {
 				feature: Feature<Geometry, ParcelProps>,
 				layer: Layer,
 			) => {
+				layer.bindTooltip(feature.properties.label, {
+					permanent: true,
+					direction: "center",
+					className: "owner-label",
+				});
 				layer.bindPopup(
-					`<strong>${feature.properties.naamcode}</strong><br/>${feature.properties.aanduiding}`,
+					`<strong>${feature.properties.eigenaar}</strong><br/>${feature.properties.aanduiding}`,
 				);
 			}}
 		/>

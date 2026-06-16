@@ -164,3 +164,25 @@ export const listOwnerParcels = createServerFn({ method: "GET" }).handler(
 		return { parcels: parcels.resources, owners: owners.resources };
 	},
 );
+
+async function countDocs(name: "parcels" | "owners", filter = "") {
+	const { resources } = await container(name)
+		.items.query<number>(
+			`SELECT VALUE COUNT(1) FROM c${filter ? ` WHERE ${filter}` : ""}`,
+		)
+		.fetchAll();
+	return resources[0] ?? 0;
+}
+
+/** Overview counts for the owner/parcel dataset (admin dashboard). */
+export const getOwnerDataStats = createServerFn({ method: "GET" }).handler(
+	async () => {
+		await requireAdminUser();
+		const [parcels, parcelsWithGeometry, owners] = await Promise.all([
+			countDocs("parcels"),
+			countDocs("parcels", "c.geometry != null"),
+			countDocs("owners"),
+		]);
+		return { parcels, parcelsWithGeometry, owners };
+	},
+);

@@ -2,9 +2,12 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
 	approveRequestFn,
+	deletePreset,
 	denyRequestFn,
+	getOwnerDataStats,
 	getSession,
 	listPendingRequests,
+	listPresets,
 	logoutFn,
 	requestAdminFn,
 } from "@/server/rpc";
@@ -13,14 +16,21 @@ export const Route = createFileRoute("/admin")({
 	component: Admin,
 	loader: async () => {
 		const session = await getSession();
-		const pending = session.role === "admin" ? await listPendingRequests() : [];
-		return { session, pending };
+		if (session.role !== "admin") {
+			return { session, pending: [], presets: [], stats: null };
+		}
+		const [pending, presets, stats] = await Promise.all([
+			listPendingRequests(),
+			listPresets(),
+			getOwnerDataStats(),
+		]);
+		return { session, pending, presets, stats };
 	},
 });
 
 function Admin() {
 	const router = useRouter();
-	const { session, pending } = Route.useLoaderData();
+	const { session, pending, presets, stats } = Route.useLoaderData();
 
 	const onRequestAdmin = async () => {
 		await requestAdminFn();
@@ -36,6 +46,10 @@ function Admin() {
 	};
 	const onDeny = async (sub: string) => {
 		await denyRequestFn({ data: { sub } });
+		router.invalidate();
+	};
+	const onDeletePreset = async (id: string) => {
+		await deletePreset({ data: { id } });
 		router.invalidate();
 	};
 
@@ -58,7 +72,7 @@ function Admin() {
 					</Button>
 				</div>
 			) : (
-				<div className="space-y-4">
+				<div className="space-y-5">
 					<div className="rounded-lg border border-border p-4 text-sm">
 						<p className="font-medium">
 							{session.user.name ?? session.user.email}
@@ -73,47 +87,115 @@ function Admin() {
 					</div>
 
 					{session.role === "admin" ? (
-						<div className="space-y-2">
-							<h2 className="text-sm font-medium">Aanvragen</h2>
-							{pending.length === 0 ? (
-								<p className="text-xs text-muted-foreground">
-									Geen openstaande aanvragen.
-								</p>
-							) : (
-								pending.map((p) => (
-									<div
-										key={p.sub}
-										className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 text-sm"
-									>
-										<div className="min-w-0">
-											<p className="truncate font-medium">
-												{p.name ?? p.email}
-											</p>
-											<p className="truncate text-xs text-muted-foreground">
-												{p.email}
-											</p>
+						<>
+							<section className="space-y-2">
+								<h2 className="text-sm font-medium">Aanvragen</h2>
+								{pending.length === 0 ? (
+									<p className="text-xs text-muted-foreground">
+										Geen openstaande aanvragen.
+									</p>
+								) : (
+									pending.map((p) => (
+										<div
+											key={p.sub}
+											className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 text-sm"
+										>
+											<div className="min-w-0">
+												<p className="truncate font-medium">
+													{p.name ?? p.email}
+												</p>
+												<p className="truncate text-xs text-muted-foreground">
+													{p.email}
+												</p>
+											</div>
+											<div className="flex shrink-0 gap-1">
+												<Button
+													size="sm"
+													className="h-7"
+													onClick={() => onApprove(p.sub)}
+												>
+													Goedkeuren
+												</Button>
+												<Button
+													size="sm"
+													variant="ghost"
+													className="h-7"
+													onClick={() => onDeny(p.sub)}
+												>
+													Afwijzen
+												</Button>
+											</div>
 										</div>
-										<div className="flex shrink-0 gap-1">
-											<Button
-												size="sm"
-												className="h-7"
-												onClick={() => onApprove(p.sub)}
+									))
+								)}
+							</section>
+
+							<section className="space-y-2">
+								<h2 className="text-sm font-medium">Eigenaren-data</h2>
+								{!stats || stats.parcels === 0 ? (
+									<p className="text-xs text-muted-foreground">
+										Nog geen data geïmporteerd. Draai{" "}
+										<code>npm run import-owners</code>.
+									</p>
+								) : (
+									<div className="grid grid-cols-3 gap-2">
+										{[
+											{ label: "Percelen", value: stats.parcels },
+											{
+												label: "Met geometrie",
+												value: stats.parcelsWithGeometry,
+											},
+											{ label: "Eigenaren", value: stats.owners },
+										].map((s) => (
+											<div
+												key={s.label}
+												className="rounded-lg border border-border p-2.5 text-center"
 											>
-												Goedkeuren
-											</Button>
+												<p className="text-lg font-semibold">{s.value}</p>
+												<p className="text-[10px] text-muted-foreground">
+													{s.label}
+												</p>
+											</div>
+										))}
+									</div>
+								)}
+							</section>
+
+							<section className="space-y-2">
+								<h2 className="text-sm font-medium">Gepubliceerde presets</h2>
+								{presets.length === 0 ? (
+									<p className="text-xs text-muted-foreground">
+										Nog geen presets. Publiceer een opstelling vanaf de kaart.
+									</p>
+								) : (
+									presets.map((preset) => (
+										<div
+											key={preset.id}
+											className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 text-sm"
+										>
+											<div className="min-w-0">
+												<p className="truncate font-medium">{preset.name}</p>
+												<p className="truncate text-xs text-muted-foreground">
+													{preset.turbines.length} turbine
+													{preset.turbines.length !== 1 ? "s" : ""}
+													{preset.minimumDistance
+														? ` · ${preset.minimumDistance} m`
+														: ""}
+												</p>
+											</div>
 											<Button
 												size="sm"
 												variant="ghost"
-												className="h-7"
-												onClick={() => onDeny(p.sub)}
+												className="h-7 shrink-0 text-muted-foreground hover:text-destructive"
+												onClick={() => onDeletePreset(preset.id)}
 											>
-												Afwijzen
+												Verwijderen
 											</Button>
 										</div>
-									</div>
-								))
-							)}
-						</div>
+									))
+								)}
+							</section>
+						</>
 					) : session.request?.status === "pending" ? (
 						<p className="text-sm text-muted-foreground">
 							Je aanvraag voor beheerderstoegang is in behandeling.

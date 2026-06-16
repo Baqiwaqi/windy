@@ -154,3 +154,22 @@ html, body, #root {
     @apply bg-background text-foreground;
   }
 }
+
+/* Owner-overlay parcel labels: plain text, no tooltip box, white halo so they
+   stay readable on either basemap. */
+.leaflet-tooltip.owner-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  color: #111;
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow:
+    0 0 2px #fff,
+    0 0 3px #fff,
+    0 0 4px #fff;
+}
+.leaflet-tooltip.owner-label::before {
+  display: none;
+}
