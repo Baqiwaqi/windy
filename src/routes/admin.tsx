@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
+import { ApprovedUsersPanel } from "@/components/admin/ApprovedUsersPanel";
 import { type OwnerRow, OwnersPanel } from "@/components/admin/OwnersPanel";
 import { type ParcelRow, ParcelsPanel } from "@/components/admin/ParcelsPanel";
 import { PresetsPanel } from "@/components/admin/PresetsPanel";
@@ -11,6 +12,7 @@ import {
 	denyRequestFn,
 	getOwnerDataStats,
 	getSession,
+	listApprovedUsers,
 	listOwnerParcels,
 	listPendingRequests,
 	listPresets,
@@ -26,26 +28,30 @@ export const Route = createFileRoute("/admin")({
 			return {
 				session,
 				pending: [],
+				approvedUsers: [],
 				presets: [],
 				stats: null,
 				ownerData: { parcels: [], owners: [] },
 			};
 		}
-		const [pending, presets, stats, ownerData] = await Promise.all([
-			listPendingRequests(),
-			listPresets(),
-			getOwnerDataStats(),
-			listOwnerParcels(),
-		]);
-		return { session, pending, presets, stats, ownerData };
+		const [pending, approvedUsers, presets, stats, ownerData] =
+			await Promise.all([
+				listPendingRequests(),
+				listApprovedUsers(),
+				listPresets(),
+				getOwnerDataStats(),
+				listOwnerParcels(),
+			]);
+		return { session, pending, approvedUsers, presets, stats, ownerData };
 	},
 });
 
-type Tab = "requests" | "owners" | "parcels" | "presets";
+type Tab = "requests" | "users" | "owners" | "parcels" | "presets";
 
 function Admin() {
 	const router = useRouter();
-	const { session, pending, presets, stats, ownerData } = Route.useLoaderData();
+	const { session, pending, approvedUsers, presets, stats, ownerData } =
+		Route.useLoaderData();
 	const [tab, setTab] = useState<Tab>("requests");
 
 	const owners = ownerData.owners as OwnerRow[];
@@ -63,6 +69,11 @@ function Admin() {
 
 	const tabs: { id: Tab; label: string; badge?: number }[] = [
 		{ id: "requests", label: "Aanvragen", badge: pending.length || undefined },
+		{
+			id: "users",
+			label: "Gebruikers",
+			badge: approvedUsers.length || undefined,
+		},
 		{ id: "owners", label: "Eigenaren" },
 		{ id: "parcels", label: "Percelen" },
 		{ id: "presets", label: "Presets" },
@@ -219,6 +230,8 @@ function Admin() {
 							)}
 						</div>
 					)}
+
+					{tab === "users" && <ApprovedUsersPanel users={approvedUsers} />}
 
 					{tab === "owners" && <OwnersPanel owners={owners} />}
 					{tab === "parcels" && (

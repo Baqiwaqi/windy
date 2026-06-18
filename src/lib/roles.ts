@@ -17,7 +17,8 @@ export interface UserRecord {
 const eq = (a: string, b: string) =>
 	a.trim().toLowerCase() === b.trim().toLowerCase();
 
-const isAllowlisted = (email: string, adminEmails: string[]) =>
+/** Whether an email is a bootstrap admin (always admin, cannot be revoked). */
+export const isAllowlisted = (email: string, adminEmails: string[]) =>
 	adminEmails.some((a) => eq(a, email));
 
 /**

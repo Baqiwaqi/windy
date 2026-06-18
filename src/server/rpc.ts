@@ -7,9 +7,12 @@ import {
 	requestAdmin as applyRequestAdmin,
 	approveRequest,
 	denyRequest,
+	isAllowlisted,
+	revokeAdmin,
 } from "@/lib/roles";
 import { getRole, getSessionUser, loadUser } from "@/server/auth";
 import { container } from "@/server/cosmos";
+import { getEnv } from "@/server/env";
 import { SESSION_COOKIE } from "@/server/session";
 import type { Configuration } from "@/types";
 
@@ -99,6 +102,87 @@ export const denyRequestFn = createServerFn({ method: "POST" })
 		if (!stored) throw new Error("User not found");
 		const updated = denyRequest(stored, admin.email, new Date().toISOString());
 		await container("users").items.upsert({ ...updated, id: data.sub });
+		return { ok: true };
+	});
+
+// ── Admin: approved users ────────────────────────────────────────────────────
+
+export interface ApprovedUser {
+	sub: string;
+	email: string;
+	name: string | null;
+	decidedAt: string | null;
+	decidedBy: string | null;
+	/** Bootstrap (allowlisted) admins are admin by config — can't be revoked. */
+	allowlisted: boolean;
+	/** The currently signed-in admin — can't revoke or remove themselves. */
+	isSelf: boolean;
+}
+
+/** Everyone who currently holds the admin role (the approved users). */
+export const listApprovedUsers = createServerFn({ method: "GET" }).handler(
+	async (): Promise<ApprovedUser[]> => {
+		const admin = await requireAdminUser();
+		const adminEmails = getEnv().adminEmails;
+		const { resources } = await container("users")
+			.items.query<{
+				id: string;
+				email: string;
+				name?: string;
+				request?: { decidedAt?: string; decidedBy?: string };
+			}>({
+				query: "SELECT * FROM c WHERE c.role = @r",
+				parameters: [{ name: "@r", value: "admin" }],
+			})
+			.fetchAll();
+		return resources.map((u) => ({
+			sub: u.id,
+			email: u.email,
+			name: u.name ?? null,
+			decidedAt: u.request?.decidedAt ?? null,
+			decidedBy: u.request?.decidedBy ?? null,
+			allowlisted: isAllowlisted(u.email, adminEmails),
+			isSelf: u.id === admin.sub,
+		}));
+	},
+);
+
+/** Revoke a granted admin, returning them to a regular member. */
+export const revokeAdminFn = createServerFn({ method: "POST" })
+	.inputValidator((d: { sub: string }) => d)
+	.handler(async ({ data }) => {
+		const admin = await requireAdminUser();
+		if (data.sub === admin.sub) {
+			throw new Error("Je kunt je eigen toegang niet intrekken.");
+		}
+		const stored = await loadUser(data.sub);
+		if (!stored) throw new Error("Gebruiker niet gevonden");
+		if (isAllowlisted(stored.email, getEnv().adminEmails)) {
+			throw new Error(
+				"Bootstrap-beheerder kan niet worden ingetrokken (staat in de allowlist).",
+			);
+		}
+		const updated = revokeAdmin(stored, getEnv().adminEmails);
+		await container("users").items.upsert({ ...updated, id: data.sub });
+		return { ok: true };
+	});
+
+/** Remove a user from the users list entirely (deletes the stored record). */
+export const removeUserFn = createServerFn({ method: "POST" })
+	.inputValidator((d: { sub: string }) => d)
+	.handler(async ({ data }) => {
+		const admin = await requireAdminUser();
+		if (data.sub === admin.sub) {
+			throw new Error("Je kunt jezelf niet verwijderen.");
+		}
+		const stored = await loadUser(data.sub);
+		if (!stored) throw new Error("Gebruiker niet gevonden");
+		if (isAllowlisted(stored.email, getEnv().adminEmails)) {
+			throw new Error(
+				"Bootstrap-beheerder kan niet worden verwijderd (staat in de allowlist).",
+			);
+		}
+		await container("users").item(data.sub, data.sub).delete();
 		return { ok: true };
 	});
 
